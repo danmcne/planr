@@ -1,1 +1,2776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>planr</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<style>
+/* ─── Variables ──────────────────────────────────────────────────────────── */
+:root {
+  --bg:          #faf9f6;
+  --bg-side:     #f0ece5;
+  --bg-hover:    #e8e2d9;
+  --bg-active:   #e0d9ce;
+  --tx:          #1c1917;
+  --tx-2:        #57534e;
+  --tx-3:        #a8a29e;
+  --tx-4:        #d6d3d1;
+  --bd:          #e2dbd1;
+  --bd-2:        #c8c0b3;
+  --ac:          #0d9488;
+  --ac-dk:       #0f766e;
+  --ac-lt:       #f0fdfa;
+  --ac-mid:      #ccfbf1;
+  --red:         #dc2626;
+  --red-bg:      #fef2f2;
+  --amber:       #d97706;
+  --amber-bg:    #fffbeb;
+  --green:       #16a34a;
+  --green-bg:    #f0fdf4;
+  --blue:        #2563eb;
+  --blue-bg:     #eff6ff;
+  --font:        'IBM Plex Sans', system-ui, sans-serif;
+  --mono:        'IBM Plex Mono', 'Courier New', monospace;
+  --r:           6px;
+  --r-sm:        4px;
+  --r-lg:        10px;
+  --shadow:      0 1px 3px rgba(0,0,0,.07), 0 2px 8px rgba(0,0,0,.04);
+  --shadow-lg:   0 4px 16px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.06);
+  --sidebar-w:   220px;
+}
 
+/* ─── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--tx);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+button { cursor: pointer; font: inherit; border: none; background: none; }
+input, textarea, select { font: inherit; color: inherit; background: none; border: none; outline: none; }
+a { color: inherit; text-decoration: none; }
+
+/* ─── App shell ──────────────────────────────────────────────────────────── */
+#app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: 100vh;
+}
+
+/* ─── Sidebar ────────────────────────────────────────────────────────────── */
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-side);
+  border-right: 1px solid var(--bd);
+  overflow: hidden;
+}
+.brand {
+  padding: 20px 20px 14px;
+  font-size: 22px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.5px;
+  color: var(--ac);
+  flex-shrink: 0;
+}
+.brand span { color: var(--tx-3); font-style: normal; font-weight: 300; }
+.nav-section { padding: 6px 0; flex-shrink: 0; }
+.nav-sep { height: 1px; background: var(--bd); margin: 6px 14px; }
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 20px 7px 16px;
+  font-size: 13.5px;
+  color: var(--tx-2);
+  border-left: 3px solid transparent;
+  transition: background 0.1s, color 0.1s;
+  user-select: none;
+  cursor: pointer;
+}
+.nav-link:hover { background: var(--bg-hover); color: var(--tx); }
+.nav-link.active { color: var(--ac); border-left-color: var(--ac); background: var(--ac-lt); font-weight: 500; }
+.nav-link svg { opacity: 0.6; flex-shrink: 0; }
+.nav-link.active svg { opacity: 1; }
+.sidebar-foot {
+  margin-top: auto;
+  padding: 12px 20px;
+  border-top: 1px solid var(--bd);
+  font-size: 12px;
+  color: var(--tx-3);
+}
+.sidebar-foot a { color: var(--ac); }
+.sidebar-foot a:hover { text-decoration: underline; }
+
+/* ─── Main area ──────────────────────────────────────────────────────────── */
+#main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ─── Topbar ─────────────────────────────────────────────────────────────── */
+#topbar {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--bd);
+  background: var(--bg);
+}
+#capture-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px 8px;
+}
+#capture-input {
+  flex: 1;
+  padding: 7px 12px;
+  background: var(--bg-side);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  font-size: 13.5px;
+  color: var(--tx);
+  transition: border-color 0.15s, background 0.15s;
+}
+#capture-input::placeholder { color: var(--tx-3); }
+#capture-input:focus {
+  background: #fff;
+  border-color: var(--ac);
+  outline: none;
+}
+#capture-btn {
+  padding: 7px 14px;
+  background: var(--ac);
+  color: #fff;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+#capture-btn:hover { background: var(--ac-dk); }
+#ctx-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px 9px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#ctx-row::-webkit-scrollbar { display: none; }
+.ctx-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  border: 1.5px solid var(--bd);
+  color: var(--tx-2);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  user-select: none;
+}
+.ctx-pill:hover { border-color: var(--bd-2); color: var(--tx); }
+.ctx-pill.active { color: var(--tx); font-weight: 500; }
+.ctx-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ─── View container ─────────────────────────────────────────────────────── */
+#view {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ─── Loading & empty ────────────────────────────────────────────────────── */
+.loading, .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 40px;
+  color: var(--tx-3);
+}
+.spinner {
+  width: 28px; height: 28px;
+  border: 2.5px solid var(--bd);
+  border-top-color: var(--ac);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-icon { font-size: 32px; opacity: 0.5; }
+.empty p { font-size: 14px; color: var(--tx-3); text-align: center; }
+.err-msg { padding: 40px; color: var(--red); text-align: center; }
+
+/* ─── View headers ───────────────────────────────────────────────────────── */
+.view-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 22px 24px 16px;
+  flex-shrink: 0;
+}
+.view-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--tx);
+}
+.view-sub { font-size: 13px; color: var(--tx-3); margin-left: 8px; font-weight: 400; }
+.view-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  cursor: pointer;
+}
+.btn-primary { background: var(--ac); color: #fff; }
+.btn-primary:hover { background: var(--ac-dk); }
+.btn-secondary { background: var(--bg-side); border: 1px solid var(--bd); color: var(--tx-2); }
+.btn-secondary:hover { background: var(--bg-hover); color: var(--tx); }
+.btn-ghost { color: var(--tx-2); padding: 5px 10px; }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--tx); }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
+.btn-danger:hover { background: #fee2e2; }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+.btn-icon { padding: 5px 7px; border-radius: var(--r-sm); color: var(--tx-3); }
+.btn-icon:hover { background: var(--bg-hover); color: var(--tx); }
+
+/* ─── Badges & chips ─────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+.badge-critical { background: var(--red-bg); color: var(--red); }
+.badge-high     { background: var(--amber-bg); color: var(--amber); }
+.badge-low      { background: var(--bg-side); color: var(--tx-3); }
+.badge-done     { background: var(--green-bg); color: var(--green); }
+.badge-deferred { background: var(--blue-bg); color: var(--blue); }
+.badge-someday  { background: var(--bg-side); color: var(--tx-3); }
+.ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  background: var(--bg-side);
+  color: var(--tx-2);
+}
+.tag-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  background: var(--bg-hover);
+  color: var(--tx-3);
+}
+
+/* ─── Today view ─────────────────────────────────────────────────────────── */
+.today-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  height: calc(100vh - 106px);
+  overflow: hidden;
+}
+.today-left {
+  border-right: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.today-right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  flex-shrink: 0;
+}
+.section-head .count {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tx-3);
+}
+.allday-strip {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--bd);
+  padding: 0 0 0 60px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 4px;
+}
+.allday-pill {
+  display: block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+  margin-top: 3px;
+}
+.timeline-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.timeline-wrap {
+  position: relative;
+  padding: 0 12px 40px 60px;
+  min-height: 900px;
+}
+.tl-hour {
+  height: 60px;
+  border-top: 1px solid var(--bd);
+  position: relative;
+}
+.tl-hour-now { border-top-color: var(--red); }
+.tl-label {
+  position: absolute;
+  left: -52px;
+  top: -9px;
+  font-size: 11px;
+  color: var(--tx-3);
+  user-select: none;
+  white-space: nowrap;
+}
+.tl-events {
+  position: absolute;
+  top: 0; left: 60px; right: 12px;
+  pointer-events: none;
+}
+.ev-block {
+  position: absolute;
+  border-radius: var(--r);
+  padding: 4px 8px;
+  font-size: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  pointer-events: all;
+  border-left: 3px solid;
+  line-height: 1.35;
+  transition: filter 0.1s;
+}
+.ev-block:hover { filter: brightness(0.95); }
+.ev-block-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-block-time  { opacity: 0.75; font-size: 11px; }
+.now-line {
+  position: absolute;
+  left: 60px; right: 12px;
+  height: 2px;
+  background: var(--red);
+  z-index: 10;
+  pointer-events: none;
+}
+.now-dot {
+  position: absolute;
+  left: 56px;
+  width: 8px; height: 8px;
+  background: var(--red);
+  border-radius: 50%;
+  top: -3px;
+}
+
+/* Tasks & Journal right panel */
+.today-tasks { flex: 1; overflow-y: auto; padding: 0 0 8px; }
+.today-journal {
+  flex-shrink: 0;
+  border-top: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+  max-height: 45%;
+}
+.journal-editor {
+  flex: 1;
+  resize: none;
+  padding: 10px 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--tx);
+  background: none;
+  border: none;
+  outline: none;
+}
+.journal-editor::placeholder { color: var(--tx-4); }
+.journal-save-status {
+  font-size: 11px;
+  color: var(--tx-3);
+  padding: 0 18px 6px;
+  flex-shrink: 0;
+}
+
+/* ─── Task cards ─────────────────────────────────────────────────────────── */
+.task-list { padding: 0 12px; }
+.task-card {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 0 8px;
+  padding: 8px 6px;
+  border-radius: var(--r);
+  cursor: pointer;
+  align-items: start;
+  transition: background 0.1s;
+  border-bottom: 1px solid transparent;
+}
+.task-card:hover { background: var(--bg-hover); }
+.task-card.done { opacity: 0.45; }
+.task-check {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--bd-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: border-color 0.12s, background 0.12s;
+  color: transparent;
+  font-size: 10px;
+}
+.task-card.done .task-check { background: var(--green); border-color: var(--green); color: #fff; }
+.task-card:not(.done) .task-check:hover { border-color: var(--ac); }
+.task-body {}
+.task-title {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--tx);
+  line-height: 1.4;
+}
+.task-card.done .task-title { text-decoration: line-through; }
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+.due-overdue { color: var(--red); font-size: 11.5px; font-weight: 500; }
+.due-today   { color: var(--amber); font-size: 11.5px; font-weight: 500; }
+.due-soon    { color: var(--amber); font-size: 11.5px; }
+.due-normal  { color: var(--tx-3); font-size: 11.5px; }
+.priority-bar {
+  display: inline-block;
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+/* ─── Week view ──────────────────────────────────────────────────────────── */
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px 16px;
+}
+.week-nav-label { font-size: 14px; color: var(--tx-2); min-width: 200px; text-align: center; }
+.week-grid {
+  display: grid;
+  grid-template-columns: 44px repeat(7, 1fr);
+  border-left: 1px solid var(--bd);
+  border-top: 1px solid var(--bd);
+  margin: 0 24px 24px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.week-corner {
+  background: var(--bg-side);
+  border-right: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+}
+.week-col-head {
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 12px;
+  border-right: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+  background: var(--bg-side);
+  min-width: 0;
+}
+.week-col-head.today-col { background: var(--ac-lt); color: var(--ac-dk); font-weight: 600; }
+.week-col-head .day-num { font-size: 18px; font-weight: 300; display: block; line-height: 1.3; }
+.week-col-head .day-name { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--tx-3); }
+.week-col-head.today-col .day-name { color: var(--ac); }
+.week-hour-label {
+  font-size: 9.5px;
+  color: var(--tx-3);
+  text-align: right;
+  padding: 0 4px 0 0;
+  border-right: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+  height: 48px;
+  line-height: 48px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.week-cell {
+  border-right: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+  height: 48px;
+  padding: 2px 2px;
+  vertical-align: top;
+  overflow: hidden;
+  min-width: 0;
+}
+.week-ev-pill {
+  display: block;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 1px;
+  cursor: pointer;
+  color: #fff;
+}
+.week-ev-pill.multiday { border-radius: 0; margin: 0 -2px; padding: 1px 4px; }
+.week-ev-pill.multiday-start { border-radius: 3px 0 0 3px; margin-right: -2px; }
+.week-ev-pill.multiday-end   { border-radius: 0 3px 3px 0; margin-left: -2px; }
+.week-ev-pill:hover { filter: brightness(0.9); }
+/* Links panel */
+.links-panel {
+  border-top: 1px solid var(--bd);
+  padding: 8px 14px 10px;
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-side);
+}
+.links-panel-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  margin-right: 2px;
+}
+.link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--ac);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.link-chip:hover { background: var(--ac-lt); border-color: var(--ac-mid); }
+/* Time-select in event form */
+.dt-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: end; }
+.time-select { padding: 8px 6px; background: var(--bg); border: 1px solid var(--bd); border-radius: var(--r); font-size: 13px; color: var(--tx); }
+.time-select:focus { border-color: var(--ac); outline: none; }
+/* Add-type chooser */
+.add-chooser { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 0; }
+.chooser-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 18px 12px;
+  background: var(--bg-side); border: 1.5px solid var(--bd); border-radius: var(--r-lg);
+  cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tx-2);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.chooser-btn:hover { background: var(--bg-hover); border-color: var(--ac); color: var(--ac); }
+.chooser-icon { font-size: 26px; }
+
+/* ─── Month view ─────────────────────────────────────────────────────────── */
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px 16px;
+}
+.month-nav-label { font-size: 16px; font-weight: 500; min-width: 160px; text-align: center; }
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid var(--bd);
+  border-top: 1px solid var(--bd);
+  margin: 0 24px 24px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.month-day-head {
+  padding: 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  border-right: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+  background: var(--bg-side);
+}
+.month-cell {
+  border-right: 1px solid var(--bd);
+  border-bottom: 1px solid var(--bd);
+  min-height: 90px;
+  padding: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.month-cell:hover { background: var(--bg-hover); }
+.month-cell.other-month { background: var(--bg-side); }
+.month-cell.today-cell .mc-num { 
+  background: var(--ac);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}
+.mc-num { font-size: 13px; color: var(--tx-2); margin-bottom: 4px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.mc-ev-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin: 1px; }
+.mc-ev-pill {
+  display: block;
+  font-size: 10.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 1px;
+  font-weight: 500;
+  color: #fff;
+}
+
+/* ─── Tasks view ─────────────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px 16px;
+  flex-wrap: wrap;
+}
+.filter-select {
+  padding: 5px 28px 5px 10px;
+  background: var(--bg-side);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  font-size: 13px;
+  color: var(--tx-2);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a8a29e'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+}
+.filter-select:focus { border-color: var(--ac); }
+.tasks-full { padding: 0 24px; }
+.task-card-full {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+  align-items: start;
+  background: #fff;
+  transition: box-shadow 0.12s;
+  cursor: pointer;
+}
+.task-card-full:hover { box-shadow: var(--shadow); }
+.task-card-full.done { opacity: 0.5; }
+.task-card-full .task-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+.task-card-full:hover .task-actions { opacity: 1; }
+.task-desc-preview { font-size: 12.5px; color: var(--tx-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px; }
+
+/* ─── Notes view ─────────────────────────────────────────────────────────── */
+.notes-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: calc(100vh - 106px);
+  overflow: hidden;
+}
+.notes-sidebar {
+  border-right: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-side);
+}
+.notes-search-wrap {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.notes-search {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  font-size: 13px;
+}
+.notes-search:focus { border-color: var(--ac); }
+.notes-list { flex: 1; overflow-y: auto; }
+.note-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bd);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.note-item:hover { background: var(--bg-hover); }
+.note-item.active { background: var(--ac-lt); border-left: 3px solid var(--ac); }
+.note-item-title { font-size: 13.5px; font-weight: 500; color: var(--tx); }
+.note-item-meta  { font-size: 11.5px; color: var(--tx-3); margin-top: 2px; }
+.notes-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.note-title-input {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--tx);
+}
+.note-title-input::placeholder { color: var(--tx-3); }
+.note-body { flex: 1; overflow: hidden; position: relative; }
+.note-textarea {
+  width: 100%;
+  height: 100%;
+  padding: 20px 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: none;
+  background: none;
+  color: var(--tx);
+}
+.note-textarea::placeholder { color: var(--tx-4); }
+.note-preview {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: none;
+}
+.note-preview.visible { display: block; }
+.note-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--tx-3);
+}
+.mode-toggle { display: flex; border: 1px solid var(--bd); border-radius: var(--r-sm); overflow: hidden; }
+.mode-toggle button {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--tx-3);
+  background: none;
+  transition: background 0.1s, color 0.1s;
+}
+.mode-toggle button.active { background: var(--bg-hover); color: var(--tx); }
+
+/* ─── Journal view ───────────────────────────────────────────────────────── */
+.journal-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: calc(100vh - 106px);
+  overflow: hidden;
+}
+.journal-nav {
+  border-right: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-side);
+}
+.journal-list { flex: 1; overflow-y: auto; }
+.journal-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bd);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.journal-item:hover { background: var(--bg-hover); }
+.journal-item.active { background: var(--ac-lt); border-left: 3px solid var(--ac); }
+.journal-item-date { font-size: 13px; font-weight: 500; color: var(--tx); }
+.journal-item-title { font-size: 12px; color: var(--tx-3); }
+.journal-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.journal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.journal-date-label { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+.journal-title-input {
+  flex: 1;
+  font-size: 14px;
+  color: var(--tx-2);
+  background: none;
+  border: none;
+  outline: none;
+}
+.journal-title-input::placeholder { color: var(--tx-4); }
+.journal-body-textarea {
+  flex: 1;
+  padding: 20px 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: none;
+  color: var(--tx);
+  background: none;
+  overflow-y: auto;
+}
+.journal-body-textarea::placeholder { color: var(--tx-4); }
+.journal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--tx-3);
+}
+.journal-status {
+  flex-shrink: 0;
+  padding: 4px 24px 10px;
+  font-size: 11.5px;
+  color: var(--tx-3);
+}
+
+/* ─── Modal ──────────────────────────────────────────────────────────────── */
+#overlay {
+  position: fixed; inset: 0;
+  background: rgba(28,25,23,.4);
+  z-index: 100;
+  backdrop-filter: blur(2px);
+  display: none;
+}
+#overlay.open { display: block; }
+#modal {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 101;
+  width: 520px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+#modal.open { display: flex; }
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-close { color: var(--tx-3); font-size: 18px; line-height: 1; padding: 2px 6px; border-radius: var(--r-sm); }
+.modal-close:hover { background: var(--bg-hover); color: var(--tx); }
+.modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+
+/* ─── Forms ──────────────────────────────────────────────────────────────── */
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tx-2);
+  margin-bottom: 5px;
+  letter-spacing: 0.2px;
+}
+.form-input, .form-textarea, .form-select {
+  width: 100%;
+  padding: 8px 11px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  font-size: 13.5px;
+  color: var(--tx);
+  transition: border-color 0.15s;
+}
+.form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--ac); outline: none; }
+.form-textarea { resize: vertical; min-height: 80px; font-family: var(--mono); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-check-group {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
+}
+.form-check-label {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border: 1.5px solid var(--bd);
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.form-check-label input[type=checkbox] { display: none; }
+.form-check-label.checked { border-color: var(--ac); background: var(--ac-lt); color: var(--ac-dk); font-weight: 500; }
+.form-hint { font-size: 11.5px; color: var(--tx-3); margin-top: 4px; }
+
+/* ─── Toast ──────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--tx);
+  color: #fff;
+  padding: 9px 18px;
+  border-radius: var(--r-lg);
+  font-size: 13.5px;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+#toast.show { opacity: 1; }
+#toast.error { background: var(--red); }
+#toast.success { background: var(--green); }
+
+/* ─── Markdown content ───────────────────────────────────────────────────── */
+.md-content { font-size: 14px; line-height: 1.7; color: var(--tx); }
+.md-content h1 { font-size: 22px; font-weight: 600; margin: 0 0 12px; letter-spacing: -0.3px; }
+.md-content h2 { font-size: 17px; font-weight: 600; margin: 20px 0 8px; }
+.md-content h3 { font-size: 15px; font-weight: 500; margin: 16px 0 6px; }
+.md-content p  { margin: 0 0 10px; }
+.md-content ul, .md-content ol { padding-left: 22px; margin-bottom: 10px; }
+.md-content li { margin-bottom: 3px; }
+.md-content code { font-family: var(--mono); font-size: 12.5px; background: var(--bg-hover); padding: 1px 5px; border-radius: 3px; }
+.md-content pre { background: var(--bg-side); border: 1px solid var(--bd); border-radius: var(--r); padding: 14px 16px; overflow-x: auto; margin-bottom: 12px; }
+.md-content pre code { background: none; padding: 0; }
+.md-content blockquote { border-left: 3px solid var(--bd-2); padding-left: 14px; color: var(--tx-2); margin: 0 0 12px; }
+.md-content a { color: var(--ac); text-decoration: underline; }
+.md-content hr { border: none; border-top: 1px solid var(--bd); margin: 16px 0; }
+.md-content table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+.md-content th, .md-content td { padding: 6px 10px; border: 1px solid var(--bd); }
+.md-content th { background: var(--bg-side); font-weight: 500; }
+.wikilink { color: var(--ac); border-bottom: 1px dashed var(--ac-mid); cursor: pointer; }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bd-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--tx-3); }
+
+/* ─── Autocomplete dropdown ──────────────────────────────────────────────── */
+.autocomplete-drop {
+  position: absolute;
+  background: #fff;
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-lg);
+  z-index: 300;
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 240px;
+}
+.autocomplete-item {
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.autocomplete-item:hover { background: var(--bg-hover); }
+.autocomplete-item-type { font-size: 10.5px; color: var(--tx-3); text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ─── Misc ───────────────────────────────────────────────────────────────── */
+.divider { height: 1px; background: var(--bd); margin: 8px 0; }
+.text-muted { color: var(--tx-3); }
+.nowrap { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar">
+    <div class="brand">planr<span>.</span></div>
+
+    <div class="nav-section">
+      <div class="nav-link active" data-view="day">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Day
+      </div>
+      <div class="nav-link" data-view="week">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Week
+      </div>
+      <div class="nav-link" data-view="month">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+        Month
+      </div>
+    </div>
+
+    <div class="nav-sep"></div>
+
+    <div class="nav-section">
+      <div class="nav-link" data-view="tasks">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Tasks
+      </div>
+      <div class="nav-link" data-view="notes">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+        Notes
+      </div>
+      <div class="nav-link" data-view="journal">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Journal
+      </div>
+    </div>
+
+    <div class="sidebar-foot">
+      <a href="/api/export/all.ics" target="_blank">Subscribe .ics ↗</a>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <div id="main">
+    <header id="topbar">
+      <div id="capture-row">
+        <input id="capture-input" type="text" placeholder="Capture task… @context · press Enter">
+        <button id="capture-btn" class="btn btn-primary">+ Add</button>
+      </div>
+      <div id="ctx-row"></div>
+    </header>
+    <div id="view"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- Modal overlay -->
+<div id="overlay"></div>
+<div id="modal">
+  <div class="modal-head">
+    <span class="modal-title" id="modal-title"></span>
+    <button class="modal-close" id="modal-close">✕</button>
+  </div>
+  <div class="modal-body" id="modal-body"></div>
+  <div class="modal-foot" id="modal-foot"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIG & STATE
+═══════════════════════════════════════════════════════════════════════════ */
+const CTX_COLORS = {
+  slate:'#64748b', gray:'#6b7280', zinc:'#71717a', neutral:'#737373',
+  stone:'#78716c', red:'#ef4444', orange:'#f97316', amber:'#f59e0b',
+  yellow:'#eab308', lime:'#84cc16', green:'#22c55e', emerald:'#10b981',
+  teal:'#14b8a6', cyan:'#06b6d4', sky:'#0ea5e9', blue:'#3b82f6',
+  indigo:'#6366f1', violet:'#8b5cf6', purple:'#a855f7', fuchsia:'#d946ef',
+  pink:'#ec4899', rose:'#f43f5e',
+};
+
+const S = {
+  view: 'today',
+  ctx: null,          // active context ID
+  contexts: [],
+  date: new Date(),   // reference date for week/month
+  // notes
+  noteId: null,
+  noteEditing: false,
+  notePreview: false,
+  // journal
+  journalId: null,
+  journalDate: null,  // ISO string YYYY-MM-DD
+  // tasks
+  taskStatus: '',
+  taskSort: 'priority',
+  // week events cache
+  weekEvents: {},     // YYYY-MM-DD → [events]
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   API
+═══════════════════════════════════════════════════════════════════════════ */
+const api = {
+  async _req(method, path, body, params) {
+    const url = new URL(path, location.href);
+    if (params) Object.entries(params).forEach(([k,v]) => v != null && url.searchParams.set(k, String(v)));
+    const opts = { method, headers: {} };
+    if (body != null) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const r = await fetch(url, opts);
+    if (r.status === 204) return null;
+    const json = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(json.detail || `${r.status} ${r.statusText}`);
+    return json;
+  },
+  get:   (p, params)  => api._req('GET',    p, null, params),
+  post:  (p, body)    => api._req('POST',   p, body),
+  patch: (p, body)    => api._req('PATCH',  p, body),
+  del:   (p, params)  => api._req('DELETE', p, null, params),
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function ctxColor(c) {
+  if (!c) return '#94a3b8';
+  return c.startsWith('#') ? c : (CTX_COLORS[c] || '#94a3b8');
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  return dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+}
+
+function fmtDateShort(d) {
+  const dt = typeof d === 'string' ? new Date(d + (d.length===10 ? 'T12:00:00' : '')) : d;
+  return dt.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+}
+
+function fmtTime(dtStr) {
+  if (!dtStr) return '';
+  const d = new Date(dtStr);
+  return d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+
+function fmtMonthYear(d) {
+  return d.toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+}
+
+function toYMD(d) {
+  // Use LOCAL date components — toISOString() returns UTC which shifts the date
+  // by the user's UTC offset (e.g. UTC+2 Italy: midnight Mon local → Sun 22:00 UTC
+  // → toISOString gives Sunday, so the whole week grid shifts one day right).
+  // For bare date strings like "2026-06-05", parse as local noon to avoid
+  // midnight-UTC ambiguity across negative-offset timezones.
+  const dt = typeof d === 'string'
+    ? new Date(d.length === 10 ? d + 'T12:00:00' : d)
+    : d;
+  const pad = n => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+}
+
+function todayYMD() {
+  // Local date, not UTC — same reason as toYMD above.
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+}
+
+function dueLabel(dueDateStr) {
+  if (!dueDateStr) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dueDateStr + 'T00:00:00');
+  const diff = Math.round((due - today) / 86400000);
+  if (diff < 0)  return `<span class="due-overdue">Overdue ${Math.abs(diff)}d</span>`;
+  if (diff === 0) return `<span class="due-today">Due today</span>`;
+  if (diff <= 3)  return `<span class="due-soon">Due in ${diff}d</span>`;
+  return `<span class="due-normal">${fmtDateShort(dueDateStr)}</span>`;
+}
+
+function importanceBadge(imp) {
+  if (imp === 'critical') return `<span class="badge badge-critical">!</span>`;
+  if (imp === 'high')     return `<span class="badge badge-high">↑</span>`;
+  return '';
+}
+
+function statusBadge(s) {
+  if (s === 'done')     return `<span class="badge badge-done">done</span>`;
+  if (s === 'deferred') return `<span class="badge badge-deferred">deferred</span>`;
+  if (s === 'someday')  return `<span class="badge badge-someday">someday</span>`;
+  return '';
+}
+
+function ctxChips(contexts) {
+  return (contexts||[]).map(c =>
+    `<span class="ctx-chip"><span class="ctx-dot" style="background:${esc(ctxColor(c.color))}"></span>${esc(c.name)}</span>`
+  ).join('');
+}
+
+function tagChips(tags) {
+  return (tags||[]).map(t => `<span class="tag-chip">#${esc(t)}</span>`).join('');
+}
+
+function renderMarkdown(md) {
+  if (!md) return '';
+  if (typeof marked === 'undefined') return `<pre>${esc(md)}</pre>`;
+  const raw = marked.parse(md);
+  const clean = typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(raw) : raw;
+  // Style [[wiki links]]
+  return clean.replace(/\[\[([^\]]+)\]\]/g, '<span class="wikilink" data-title="$1">$1</span>');
+}
+
+function weekStart(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = (day === 0 ? -6 : 1 - day); // Monday first
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════════════════════════ */
+let _toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.className = '', 3000);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════════════════════════════ */
+function openModal(title, bodyHTML, footButtons = []) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHTML;
+  const foot = document.getElementById('modal-foot');
+  foot.innerHTML = '';
+  footButtons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'btn ' + (b.cls || 'btn-secondary');
+    btn.textContent = b.label;
+    btn.onclick = b.fn;
+    foot.appendChild(btn);
+  });
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('modal').classList.add('open');
+  // focus first input
+  setTimeout(() => { const f = document.querySelector('#modal-body input, #modal-body textarea'); if(f) f.focus(); }, 50);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('modal').classList.remove('open');
+}
+
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('overlay').addEventListener('click', closeModal);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTEXT BAR
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadContexts() {
+  try {
+    S.contexts = await api.get('/api/contexts/');
+  } catch(e) { S.contexts = []; }
+  renderCtxBar();
+}
+
+function renderCtxBar() {
+  const row = document.getElementById('ctx-row');
+  const allActive = !S.ctx;
+  row.innerHTML =
+    `<span class="ctx-pill${allActive?' active':''}" data-ctx="" style="${allActive?'border-color:var(--ac-dk);background:var(--ac-lt);color:var(--ac-dk)':''}">All</span>` +
+    S.contexts.map(c => {
+      const col = ctxColor(c.color);
+      const active = S.ctx === c.id;
+      return `<span class="ctx-pill${active?' active':''}" data-ctx="${esc(c.id)}"
+        style="${active ? `border-color:${col};background:${col}22;color:${col}` : ''}">
+        <span class="ctx-dot" style="background:${col}"></span>${esc(c.name)}
+      </span>`;
+    }).join('');
+  row.querySelectorAll('.ctx-pill').forEach(el => {
+    el.addEventListener('click', () => {
+      S.ctx = el.dataset.ctx || null;
+      renderCtxBar();
+      navigate(S.view);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUICK CAPTURE
+═══════════════════════════════════════════════════════════════════════════ */
+function bindCapture() {
+  const inp = document.getElementById('capture-input');
+  const btn = document.getElementById('capture-btn');
+  async function doCapture() {
+    const text = inp.value.trim();
+    if (!text) { showAddChooser(); return; }
+    try {
+      await api.post('/api/quick-capture', { text });
+      inp.value = '';
+      toast('Task added ✓', 'success');
+      if (S.view === 'day' || S.view === 'tasks') navigate(S.view);
+    } catch(e) { toast(e.message, 'error'); }
+  }
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') doCapture(); });
+  btn.addEventListener('click', showAddChooser);
+}
+
+function showAddChooser() {
+  openModal('Create new…',
+    `<div class="add-chooser">
+      <button class="chooser-btn" id="choose-task"><span class="chooser-icon">☑</span>Task</button>
+      <button class="chooser-btn" id="choose-event"><span class="chooser-icon">📅</span>Event</button>
+    </div>`,
+    [{ label: 'Cancel', cls: 'btn-secondary', fn: closeModal }]
+  );
+  document.getElementById('choose-task').addEventListener('click', () => { closeModal(); openTaskModal(); });
+  document.getElementById('choose-event').addEventListener('click', () => { closeModal(); openEventModal(); });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVENT LAYOUT (for timeline)
+═══════════════════════════════════════════════════════════════════════════ */
+const TL_START = 7;   // 7am
+const TL_END   = 22;  // 10pm
+const TL_PX    = 60;  // px per hour
+
+function layoutTimelineEvents(events) {
+  const timed = events.filter(e => !e.all_day).map(e => ({
+    ...e,
+    _s: new Date(e.start_datetime).getTime(),
+    _e: new Date(e.end_datetime).getTime(),
+    col: 0, maxCol: 0,
+  })).sort((a,b) => a._s - b._s);
+
+  for (let i = 0; i < timed.length; i++) {
+    const ev = timed[i];
+    const overlapping = timed.slice(0, i).filter(o => o._s < ev._e && o._e > ev._s);
+    const used = new Set(overlapping.map(o => o.col));
+    let col = 0; while (used.has(col)) col++;
+    ev.col = col;
+    const mc = Math.max(col, ...overlapping.map(o => o.maxCol));
+    overlapping.forEach(o => o.maxCol = mc);
+    ev.maxCol = mc;
+  }
+  return timed;
+}
+
+function evTop(startStr) {
+  const d = new Date(startStr);
+  return (d.getHours() - TL_START) * TL_PX + (d.getMinutes() / 60) * TL_PX;
+}
+
+function evHeight(startStr, endStr) {
+  const s = new Date(startStr), e = new Date(endStr);
+  return Math.max(28, ((e - s) / 3600000) * TL_PX);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW: TODAY
+═══════════════════════════════════════════════════════════════════════════ */
+let _journalAutoSave;
+
+async function renderDay() {
+  setView('<div class="loading"><div class="spinner"></div></div>');
+  try {
+    const dayYMD = toYMD(S.date);
+    const params = { ...(S.ctx ? { context_id: S.ctx } : {}) };
+    const data = await api.get(`/api/events/day/${dayYMD}`, params);
+    const taskData = await api.get('/api/tasks/today', { limit: 20, ...(S.ctx ? { context_id: S.ctx } : {}) });
+    // Journal for the selected day (not necessarily today)
+    const isToday = dayYMD === todayYMD();
+    let journal = null;
+    try { journal = await api.get(`/api/journal/date/${dayYMD}`); } catch {}
+    const combined = { events: data || [], tasks: taskData || [], journal };
+    setView(buildDayHTML(combined, dayYMD, isToday));
+    bindDay(combined, dayYMD);
+  } catch(e) { setView(`<div class="err-msg">Failed to load day view: ${esc(e.message)}</div>`); }
+}
+
+function buildDayHTML(data, dayYMD, isToday) {
+  const allDay = (data.events||[]).filter(e => e.all_day);
+  const timed  = layoutTimelineEvents((data.events||[]).filter(e => !e.all_day));
+  const tasks  = data.tasks || [];
+  const j      = data.journal;
+
+  const now = new Date();
+  const nowTop = (now.getHours() - TL_START) * TL_PX + (now.getMinutes()/60)*TL_PX;
+  const showNow = isToday && now.getHours() >= TL_START && now.getHours() < TL_END;
+
+  const hours = Array.from({ length: TL_END - TL_START }, (_, i) => i + TL_START);
+  const hourRows = hours.map(h => {
+    const label = h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+    return `<div class="tl-hour"><span class="tl-label">${label}</span></div>`;
+  }).join('');
+
+  const eventBlocks = timed.map(ev => {
+    const top    = evTop(ev.start_datetime);
+    const height = evHeight(ev.start_datetime, ev.end_datetime);
+    if (top < 0 || top > (TL_END - TL_START) * TL_PX) return '';
+    const col  = ev.col, cols = ev.maxCol + 1;
+    const w    = `calc(${100/cols}% - ${cols>1?'4px':'2px'})`;
+    const left = `calc(${(col/cols)*100}% + ${col>0?'4px':'0px'})`;
+    const color = ev.contexts?.[0] ? ctxColor(ev.contexts[0].color) : 'var(--ac)';
+    const bg = color + '22';
+    return `<div class="ev-block" data-action="view-event" data-id="${esc(ev.id)}"
+        style="top:${top}px;height:${height}px;width:${w};left:${left};border-color:${color};background:${bg};color:${color}">
+      <div class="ev-block-title">${esc(ev.title)}</div>
+      <div class="ev-block-time">${fmtTime(ev.start_datetime)} – ${fmtTime(ev.end_datetime)}</div>
+    </div>`;
+  }).join('');
+
+  const allDayHTML = allDay.map(ev => {
+    const color = ev.contexts?.[0] ? ctxColor(ev.contexts[0].color) : 'var(--ac)';
+    return `<div class="allday-pill" style="background:${color}" data-action="view-event" data-id="${esc(ev.id)}">${esc(ev.title)}</div>`;
+  }).join('');
+
+  const taskCount = tasks.length;
+  const tasksHTML = tasks.length ? tasks.map(t => buildTaskCard(t)).join('') :
+    `<div class="empty" style="padding:40px 20px"><span class="text-muted">No tasks for today</span></div>`;
+
+  const jContent = j ? j.content || '' : '';
+  const jId      = j ? j.id : null;
+
+  const d = new Date(dayYMD + 'T12:00:00');
+  const dateLabel = d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+  const titleLabel = isToday ? `Today <span class="view-sub">${dateLabel}</span>` : `<span class="view-sub">${dateLabel}</span>`;
+
+  return `
+  <div class="view-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-ghost btn-sm" data-action="day-prev">←</button>
+      <span class="view-title">${titleLabel}</span>
+      <button class="btn btn-ghost btn-sm" data-action="day-next">→</button>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn-secondary btn-sm" data-action="new-event">+ Event</button>
+      <button class="btn btn-primary btn-sm" data-action="new-task">+ Task</button>
+    </div>
+  </div>
+  <div class="today-layout">
+    <div class="today-left">
+      <div class="section-head">Schedule
+        <span>${allDay.length + timed.length} events</span>
+      </div>
+      ${allDay.length ? `<div class="allday-strip">${allDayHTML}</div>` : ''}
+      <div class="timeline-scroll">
+        <div class="timeline-wrap" style="height:${(TL_END-TL_START)*TL_PX+40}px">
+          ${hourRows}
+          ${showNow ? `<div class="now-line" style="top:${nowTop}px"><div class="now-dot"></div></div>` : ''}
+          <div class="tl-events" style="height:${(TL_END-TL_START)*TL_PX}px">
+            ${eventBlocks}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="today-right">
+      <div class="section-head" style="padding-top:14px">
+        Tasks <span>${taskCount}</span>
+      </div>
+      <div class="today-tasks">
+        <div class="task-list">${tasksHTML}</div>
+      </div>
+      <div class="today-journal">
+        <div class="section-head">
+          Journal
+          <span class="journal-save-status" id="j-status"></span>
+        </div>
+        <textarea class="journal-editor" id="j-editor" placeholder="Write today's thoughts…"
+          data-jid="${esc(jId||'')}" data-jdate="${esc(dayYMD)}">${esc(jContent)}</textarea>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildTaskCard(t, full = false) {
+  const done = t.status === 'done';
+  const cls = full ? 'task-card-full' : 'task-card';
+  return `
+  <div class="${cls}${done?' done':''}" data-action="edit-task" data-id="${esc(t.id)}">
+    <div class="task-check" data-action="toggle-task" data-id="${esc(t.id)}">${done ? '✓' : ''}</div>
+    <div class="task-body">
+      <div class="task-title">${esc(t.title)} ${importanceBadge(t.importance)}</div>
+      <div class="task-meta">
+        ${t.due_date ? dueLabel(t.due_date) : ''}
+        ${ctxChips(t.contexts)}
+        ${tagChips(t.tags)}
+        ${statusBadge(t.status)}
+      </div>
+      ${full && t.description ? `<div class="task-desc-preview">${esc(t.description)}</div>` : ''}
+    </div>
+    ${full ? `<div class="task-actions">
+      <button class="btn-icon" data-action="delete-task" data-id="${esc(t.id)}" title="Delete">✕</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function bindDay(data, dayYMD) {
+  // Journal auto-save
+  const jed = document.getElementById('j-editor');
+  if (jed) {
+    _journalAutoSave = debounce(async (content) => {
+      const jid = jed.dataset.jid;
+      const jdate = jed.dataset.jdate;
+      const st = document.getElementById('j-status');
+      if (st) st.textContent = 'Saving…';
+      try {
+        if (jid) {
+          await api.patch(`/api/journal/${jid}`, { content });
+          jed.dataset.jid = jid;
+        } else {
+          const result = await api.post('/api/journal/', { entry_date: jdate, content, context_ids: [], tag_names: [] });
+          jed.dataset.jid = result.id;
+        }
+        if (st) st.textContent = 'Saved ✓';
+        setTimeout(() => { if (st) st.textContent = ''; }, 2000);
+      } catch(e) {
+        if (st) st.textContent = 'Error saving';
+      }
+    }, 1500);
+    jed.addEventListener('input', () => _journalAutoSave(jed.value));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW: WEEK
+═══════════════════════════════════════════════════════════════════════════ */
+async function renderWeek() {
+  setView('<div class="loading"><div class="spinner"></div></div>');
+  try {
+    const ws = weekStart(S.date);
+    const we = addDays(ws, 6);
+    const events = await api.get('/api/events/', {
+      start: toYMD(ws), end: toYMD(we),
+      ...(S.ctx ? { context_id: S.ctx } : {})
+    });
+
+    const today = todayYMD();
+    const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const weekDates = Array.from({length:7}, (_,i) => toYMD(addDays(ws, i)));
+
+    // Expand multi-day events across all days they span within this week
+    const byDate = {};
+    weekDates.forEach(d => byDate[d] = []);
+    (events||[]).forEach(ev => {
+      const startYMD = toYMD(new Date(ev.start_datetime));
+      const endYMD   = ev.end_datetime ? toYMD(new Date(ev.end_datetime)) : startYMD;
+      const isMulti  = endYMD !== startYMD;
+      weekDates.forEach(d => {
+        if (d >= startYMD && d <= endYMD) {
+          byDate[d].push({ ...ev, _isMulti: isMulti, _isStart: d === startYMD, _isEnd: d === endYMD });
+        }
+      });
+    });
+
+    const HOURS = [8,9,10,11,12,13,14,15,16,17];
+
+    // Header row — corner cell must be a real element so the grid has 8 items in row 1
+    const heads = [
+      '<div class="week-corner"></div>',
+      ...weekDates.map((ymd, i) => {
+        const d = addDays(ws, i);
+        const isToday = ymd === today;
+        return `<div class="week-col-head${isToday?' today-col':''}">
+          <span class="day-num">${d.getDate()}</span>
+          <span class="day-name">${dayNames[i]}</span>
+        </div>`;
+      }),
+    ].join('');
+
+    // Time rows
+    const rows = HOURS.map(h => {
+      const label = h < 12 ? `${h}a` : h===12 ? '12p' : `${h-12}p`;
+      const cells = weekDates.map(ymd => {
+        const evs = byDate[ymd]?.filter(ev => {
+          if (ev.all_day || ev._isMulti) return h === 8; // show spanning/all-day at top slot
+          const evH = parseInt((ev.start_datetime||'').slice(11,13));
+          return evH === h;
+        }) || [];
+        const pills = evs.map(ev => {
+          const color = ev.contexts?.[0] ? ctxColor(ev.contexts[0].color) : 'var(--ac)';
+          const mc = ev._isMulti
+            ? (ev._isStart ? 'multiday-start' : ev._isEnd ? 'multiday-end' : 'multiday')
+            : '';
+          return `<span class="week-ev-pill${mc?' '+mc:''}" style="background:${color}"
+            data-action="view-event" data-id="${esc(ev.id)}">${esc(ev.title)}</span>`;
+        }).join('');
+        return `<div class="week-cell">${pills}</div>`;
+      }).join('');
+      return `<div class="week-hour-label">${label}</div>${cells}`;
+    }).join('');
+
+    const wLabel = `${fmtDateShort(ws)} – ${fmtDateShort(we)}`;
+    setView(`
+    <div class="view-header">
+      <span class="view-title">Week</span>
+      <div class="view-actions">
+        <button class="btn btn-secondary btn-sm" data-action="new-event">+ Event</button>
+      </div>
+    </div>
+    <div class="week-nav">
+      <button class="btn btn-ghost btn-sm" id="week-prev">← Prev</button>
+      <span class="week-nav-label">${wLabel}</span>
+      <button class="btn btn-ghost btn-sm" id="week-next">Next →</button>
+    </div>
+    <div class="week-grid">
+      ${heads}
+      ${rows}
+    </div>`);
+
+    document.getElementById('week-prev').addEventListener('click', () => { S.date = addDays(weekStart(S.date), -7); renderWeek(); });
+    document.getElementById('week-next').addEventListener('click', () => { S.date = addDays(weekStart(S.date),  7); renderWeek(); });
+  } catch(e) { setView(`<div class="err-msg">Failed to load week view: ${esc(e.message)}</div>`); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW: MONTH
+═══════════════════════════════════════════════════════════════════════════ */
+async function renderMonth() {
+  setView('<div class="loading"><div class="spinner"></div></div>');
+  try {
+    const y = S.date.getFullYear(), m = S.date.getMonth();
+    const first = new Date(y, m, 1);
+    const last  = new Date(y, m+1, 0);
+    const events = await api.get('/api/events/', {
+      start: toYMD(first), end: toYMD(last),
+      ...(S.ctx ? { context_id: S.ctx } : {})
+    });
+
+    // Group by date, expanding multi-day events across all days they cover
+    const byDate = {};
+    const monthStart = toYMD(first), monthEnd = toYMD(last);
+    (events||[]).forEach(ev => {
+      const startYMD = toYMD(new Date(ev.start_datetime));
+      const endYMD   = ev.end_datetime ? toYMD(new Date(ev.end_datetime)) : startYMD;
+      let cur = new Date(startYMD + 'T12:00:00');
+      const end = new Date(endYMD + 'T12:00:00');
+      while (cur <= end) {
+        const d = toYMD(cur);
+        if (d >= monthStart && d <= monthEnd) {
+          if (!byDate[d]) byDate[d] = [];
+          byDate[d].push(ev);
+        }
+        cur = addDays(cur, 1);
+      }
+    });
+
+    const today = todayYMD();
+    const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+    let cursor = weekStart(first);
+    const cells = [];
+    while (cursor <= last || cursor.getDay() !== 1) {
+      const ymd = toYMD(cursor);
+      const inMonth = cursor.getMonth() === m;
+      const isToday = ymd === today;
+      const evs = byDate[ymd] || [];
+      // Event pills have their own data-action so clicks don't bubble to day-nav
+      const evHTML = evs.slice(0,3).map(ev => {
+        const color = ev.contexts?.[0] ? ctxColor(ev.contexts[0].color) : 'var(--ac)';
+        return `<div class="mc-ev-pill" style="background:${color}"
+          data-action="view-event" data-id="${esc(ev.id)}">${esc(ev.title)}</div>`;
+      }).join('') + (evs.length > 3 ? `<div style="font-size:10px;color:var(--tx-3);padding:0 2px">+${evs.length-3} more</div>` : '');
+      // Cell click (on background, not pill) navigates to Day view for that date
+      cells.push(`<div class="month-cell${!inMonth?' other-month':''}${isToday?' today-cell':''}"
+          data-action="day-nav" data-date="${ymd}">
+        <div class="mc-num">${cursor.getDate()}</div>
+        ${evHTML}
+      </div>`);
+      cursor = addDays(cursor, 1);
+      if (cells.length > 42) break;
+    }
+
+    const dayHeads = dayNames.map(d => `<div class="month-day-head">${d}</div>`).join('');
+
+    setView(`
+    <div class="view-header">
+      <span class="view-title">Month</span>
+      <div class="view-actions">
+        <button class="btn btn-secondary btn-sm" data-action="new-event">+ Event</button>
+      </div>
+    </div>
+    <div class="month-nav">
+      <button class="btn btn-ghost btn-sm" id="mo-prev">← Prev</button>
+      <span class="month-nav-label">${fmtMonthYear(S.date)}</span>
+      <button class="btn btn-ghost btn-sm" id="mo-next">Next →</button>
+    </div>
+    <div class="month-grid">
+      ${dayHeads}
+      ${cells.join('')}
+    </div>`);
+
+    document.getElementById('mo-prev').addEventListener('click', () => { S.date = new Date(y, m-1, 1); renderMonth(); });
+    document.getElementById('mo-next').addEventListener('click', () => { S.date = new Date(y, m+1, 1); renderMonth(); });
+  } catch(e) { setView(`<div class="err-msg">Failed to load month view: ${esc(e.message)}</div>`); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW: TASKS
+═══════════════════════════════════════════════════════════════════════════ */
+async function renderTasks() {
+  setView('<div class="loading"><div class="spinner"></div></div>');
+  try {
+    const params = { sort_by: S.taskSort, ...(S.ctx ? { context_id: S.ctx } : {}) };
+    if (S.taskStatus) params.status = S.taskStatus;
+    const tasks = await api.get('/api/tasks/', params);
+    setView(buildTasksHTML(tasks));
+    bindTasks(tasks);
+  } catch(e) { setView(`<div class="err-msg">Failed to load tasks: ${esc(e.message)}</div>`); }
+}
+
+function buildTasksHTML(tasks) {
+  const count = tasks.length;
+  const listHTML = tasks.length
+    ? `<div class="tasks-full">${tasks.map(t => buildTaskCard(t, true)).join('')}</div>`
+    : `<div class="empty"><span class="empty-icon">✓</span><p>No tasks match these filters.</p></div>`;
+
+  return `
+  <div class="view-header">
+    <div>
+      <span class="view-title">Tasks</span>
+      <span class="view-sub">${count} items</span>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn-primary btn-sm" data-action="new-task">+ Task</button>
+    </div>
+  </div>
+  <div class="filter-bar">
+    <select class="filter-select" id="f-status">
+      <option value="">All statuses</option>
+      <option value="inbox"${S.taskStatus==='inbox'?' selected':''}>Inbox</option>
+      <option value="active"${S.taskStatus==='active'?' selected':''}>Active</option>
+      <option value="done"${S.taskStatus==='done'?' selected':''}>Done</option>
+      <option value="deferred"${S.taskStatus==='deferred'?' selected':''}>Deferred</option>
+      <option value="someday"${S.taskStatus==='someday'?' selected':''}>Someday</option>
+    </select>
+    <select class="filter-select" id="f-sort">
+      <option value="priority"${S.taskSort==='priority'?' selected':''}>Sort: Priority</option>
+      <option value="due_date"${S.taskSort==='due_date'?' selected':''}>Sort: Due date</option>
+      <option value="created_at"${S.taskSort==='created_at'?' selected':''}>Sort: Created</option>
+      <option value="importance"${S.taskSort==='importance'?' selected':''}>Sort: Importance</option>
+      <option value="title"${S.taskSort==='title'?' selected':''}>Sort: Title</option>
+    </select>
+  </div>
+  ${listHTML}`;
+}
+
+function bindTasks() {
+  const fs = document.getElementById('f-status');
+  const fso = document.getElementById('f-sort');
+  if (fs) fs.addEventListener('change', () => { S.taskStatus = fs.value; renderTasks(); });
+  if (fso) fso.addEventListener('change', () => { S.taskSort = fso.value; renderTasks(); });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW: NOTES
+═══════════════════════════════════════════════════════════════════════════ */
+let _noteSearchDebounce;
+
+async function renderNotes(q = '') {
+  setView('<div class="loading"><div class="spinner"></div></div>');
+  try {
+    const params = { ...(q ? { q } : {}), ...(S.ctx ? { context_id: S.ctx } : {}) };
+    const notes = await api.get('/api/notes/', params);
+    setView(buildNotesHTML(notes, q));
+    bindNotes(notes, q);
+    if (S.noteId) loadNote(S.noteId);
+  } catch(e) { setView(`<div class="err-msg">Failed to load notes: ${esc(e.message)}</div>`); }
+}
+
+function buildNotesHTML(notes, q = '') {
+  const listHTML = notes.length
+    ? notes.map(n => `
+      <div class="note-item${S.noteId===n.id?' active':''}" data-action="select-note" data-id="${esc(n.id)}">
+        <div class="note-item-title">${esc(n.title)}</div>
+        <div class="note-item-meta">${fmtDateShort(n.updated_at)} ${ctxChips(n.contexts)}</div>
+      </div>`).join('')
+    : `<div style="padding:20px;color:var(--tx-3);font-size:13px;text-align:center">No notes yet.</div>`;
+
+  return `
+  <div class="view-header" style="padding-bottom:0">
+    <span class="view-title">Notes</span>
+    <button class="btn btn-primary btn-sm" data-action="new-note">+ Note</button>
+  </div>
+  <div class="notes-layout">
+    <div class="notes-sidebar">
+      <div class="notes-search-wrap">
+        <input class="notes-search" id="notes-search" type="text" placeholder="Search notes…" value="${esc(q)}">
+      </div>
+      <div class="notes-list">${listHTML}</div>
+    </div>
+    <div class="notes-content" id="notes-content">
+      <div class="note-empty"><span class="text-muted">Select a note to view it</span></div>
+    </div>
+  </div>`;
+}
+
+function bindNotes(notes, q) {
+  const search = document.getElementById('notes-search');
+  if (search) {
+    search.addEventListener('input', debounce(() => renderNotes(search.value.trim()), 350));
+  }
+}
+
+async function loadNote(noteId) {
+  S.noteId = noteId;
+  const panel = document.getElementById('notes-content');
+  if (!panel) return;
+  panel.innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
+  try {
+    const note = await api.get(`/api/notes/${noteId}`);
+    panel.innerHTML = buildNotePanel(note);
+    bindNotePanel(note);
+    // Update sidebar active state
+    document.querySelectorAll('.note-item').forEach(el => el.classList.toggle('active', el.dataset.id === noteId));
+  } catch(e) { panel.innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+}
+
+function buildNotePanel(note, isNew = false) {
+  const content = note?.content || '';
+  const links = extractWikiLinks(content);
+  const linksHTML = links.length
+    ? `<div class="links-panel"><span class="links-panel-label">Links</span>${
+        links.map(l => `<span class="link-chip" data-action="open-link" data-title="${esc(l)}">[[${esc(l)}]]</span>`).join('')
+      }</div>` : '';
+  return `
+  <div class="note-toolbar">
+    <input class="note-title-input" id="note-title" type="text" value="${esc(note?.title||'')}" placeholder="Note title">
+    <button class="btn btn-primary btn-sm" id="note-save">${isNew ? 'Create' : 'Save'}</button>
+    ${note?.id ? `<button class="btn btn-danger btn-sm" data-action="delete-note" data-id="${esc(note.id)}">Delete</button>` : ''}
+  </div>
+  <div class="note-body">
+    <textarea class="note-textarea" id="note-body" placeholder="Write in Markdown… (type [[ for wiki-links)">${esc(content)}</textarea>
+  </div>
+  <div id="note-links-panel">${linksHTML}</div>`;
+}
+
+function extractWikiLinks(content) {
+  const ms = (content||'').match(/\[\[([^\]]+)\]\]/g) || [];
+  return [...new Set(ms.map(m => m.slice(2,-2)))];
+}
+
+function refreshLinksPanel(content) {
+  const links = extractWikiLinks(content);
+  const panel = document.getElementById('note-links-panel');
+  if (!panel) return;
+  panel.innerHTML = links.length
+    ? `<div class="links-panel"><span class="links-panel-label">Links</span>${
+        links.map(l => `<span class="link-chip" data-action="open-link" data-title="${esc(l)}">[[${esc(l)}]]</span>`).join('')
+      }</div>` : '';
+}
+
+function bindNotePanel(note, isNew = false) {
+  const textarea = document.getElementById('note-body');
+  const saveBtn  = document.getElementById('note-save');
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const title   = document.getElementById('note-title')?.value?.trim();
+      const content = textarea?.value || '';
+      if (!title) { toast('Title is required', 'error'); return; }
+
+      async function tryCreate(useTitle) {
+        const note2 = await api.post('/api/notes/', {
+          title: useTitle, content,
+          context_ids: S.ctx ? [S.ctx] : [],
+          tag_names: [],
+        });
+        toast('Note created ✓', 'success');
+        S.noteId = note2.id;
+        renderNotes();
+      }
+
+      try {
+        if (isNew || !note?.id) {
+          await tryCreate(title);
+        } else {
+          await api.patch(`/api/notes/${note.id}`, { title, content });
+          toast('Note saved ✓', 'success');
+          renderNotes();
+        }
+      } catch(e) {
+        if ((isNew || !note?.id) && (e.message.includes('409') || e.message.toLowerCase().includes('already'))) {
+          if (confirm(`A note named "${title}" already exists. Create anyway?\n(A timestamp will be appended.)`)) {
+            const ts = new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+            try { await tryCreate(`${title} · ${ts}`); }
+            catch(e2) { toast(e2.message, 'error'); }
+          }
+        } else { toast(e.message, 'error'); }
+      }
+    });
+  }
+
+  if (textarea) {
+    textarea.addEventListener('keydown', e => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const s = textarea.selectionStart;
+        textarea.value = textarea.value.slice(0,s) + '  ' + textarea.value.slice(textarea.selectionEnd);
+        textarea.selectionStart = textarea.selectionEnd = s + 2;
+      }
+    });
+    textarea.addEventListener('input', () => {
+      handleWikiAutocomplete(textarea);
+      refreshLinksPanel(textarea.value);
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW: JOURNAL
+═══════════════════════════════════════════════════════════════════════════ */
+async function renderJournal() {
+  setView('<div class="loading"><div class="spinner"></div></div>');
+  try {
+    const entries = await api.get('/api/journal/', { limit: 60, ...(S.ctx ? { context_id: S.ctx } : {}) });
+    setView(buildJournalHTML(entries));
+    bindJournal(entries);
+    // Load today's entry by default
+    const targetDate = S.journalDate || todayYMD();
+    loadJournalEntry(targetDate, entries);
+  } catch(e) { setView(`<div class="err-msg">Failed to load journal: ${esc(e.message)}</div>`); }
+}
+
+function buildJournalHTML(entries) {
+  const listHTML = entries.length
+    ? entries.map(e => `
+      <div class="journal-item${S.journalDate===e.entry_date?' active':''}"
+          data-action="select-journal" data-date="${esc(e.entry_date)}" data-id="${esc(e.id)}">
+        <div class="journal-item-date">${fmtDateShort(e.entry_date)}</div>
+        ${e.title ? `<div class="journal-item-title">${esc(e.title)}</div>` : ''}
+      </div>`).join('')
+    : `<div style="padding:20px;color:var(--tx-3);font-size:13px;text-align:center">No entries yet.</div>`;
+
+  return `
+  <div class="view-header" style="padding-bottom:0">
+    <span class="view-title">Journal</span>
+    <button class="btn btn-primary btn-sm" data-action="new-journal">+ Today</button>
+  </div>
+  <div class="journal-layout">
+    <div class="journal-nav">
+      <div class="section-head" style="padding-top:12px">Entries</div>
+      <div class="journal-list">${listHTML}</div>
+    </div>
+    <div class="journal-content" id="journal-content">
+      <div class="journal-empty"><span class="text-muted">Select an entry to open it</span></div>
+    </div>
+  </div>`;
+}
+
+function bindJournal() {}
+
+async function loadJournalEntry(dateStr, allEntries) {
+  S.journalDate = dateStr;
+  const panel = document.getElementById('journal-content');
+  if (!panel) return;
+
+  // Update sidebar
+  document.querySelectorAll('.journal-item').forEach(el => el.classList.toggle('active', el.dataset.date === dateStr));
+
+  panel.innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
+  try {
+    const entry = await api.get(`/api/journal/date/${dateStr}`).catch(() => null);
+    panel.innerHTML = buildJournalPanel(entry, dateStr);
+    bindJournalPanel(entry, dateStr);
+  } catch(e) {
+    panel.innerHTML = buildJournalPanel(null, dateStr);
+    bindJournalPanel(null, dateStr);
+  }
+}
+
+function buildJournalPanel(entry, dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const dateLabel = d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const content = entry?.content || '';
+  const jTitle  = entry?.title  || '';
+  const links = extractWikiLinks(content);
+  const linksHTML = links.length
+    ? `<div class="links-panel"><span class="links-panel-label">Links</span>${
+        links.map(l => `<span class="link-chip" data-action="open-link" data-title="${esc(l)}">[[${esc(l)}]]</span>`).join('')
+      }</div>` : '';
+
+  return `
+  <div class="journal-head">
+    <span class="journal-date-label">${dateLabel}</span>
+    <input class="journal-title-input" id="jt-title" type="text"
+      value="${esc(jTitle)}" placeholder="Optional title…">
+    ${entry ? `<button class="btn btn-danger btn-sm" data-action="delete-journal" data-id="${esc(entry.id)}">Delete</button>` : ''}
+  </div>
+  <textarea class="journal-body-textarea" id="jt-body"
+    placeholder="Write today's thoughts…">${esc(content)}</textarea>
+  <div id="journal-links-panel">${linksHTML}</div>
+  <div class="journal-status" id="jt-status"></div>`;
+}
+
+function bindJournalPanel(entry, dateStr) {
+  const body  = document.getElementById('jt-body');
+  const titleInput = document.getElementById('jt-title');
+  const status = document.getElementById('jt-status');
+
+  if (!body) return;
+
+  body.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = body.selectionStart;
+      body.value = body.value.slice(0,s) + '  ' + body.value.slice(body.selectionEnd);
+      body.selectionStart = body.selectionEnd = s + 2;
+    }
+  });
+
+  body.addEventListener('input', () => {
+    handleWikiAutocomplete(body);
+    // Refresh links panel
+    const links = extractWikiLinks(body.value);
+    const lp = document.getElementById('journal-links-panel');
+    if (lp) {
+      lp.innerHTML = links.length
+        ? `<div class="links-panel"><span class="links-panel-label">Links</span>${
+            links.map(l => `<span class="link-chip" data-action="open-link" data-title="${esc(l)}">[[${esc(l)}]]</span>`).join('')
+          }</div>` : '';
+    }
+  });
+
+  let currentEntryId = entry?.id || null;
+
+  const doSave = debounce(async () => {
+    const content = body.value;
+    const title   = titleInput?.value?.trim() || null;
+    if (status) status.textContent = 'Saving…';
+    try {
+      if (currentEntryId) {
+        await api.patch(`/api/journal/${currentEntryId}`, { content, ...(title!=null?{title}:{}) });
+      } else {
+        const r = await api.post('/api/journal/', {
+          entry_date: dateStr, content,
+          ...(title ? { title } : {}),
+          context_ids: [], tag_names: [],
+        });
+        currentEntryId = r.id;
+        renderJournal(); return;
+      }
+      if (status) { status.textContent = 'Saved ✓'; setTimeout(()=>{ if(status) status.textContent=''; }, 2000); }
+    } catch(e) {
+      if (status) status.textContent = 'Error: ' + e.message;
+    }
+  }, 1500);
+
+  body.addEventListener('input', doSave);
+  if (titleInput) titleInput.addEventListener('input', doSave);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   [[WIKI-LINK]] AUTOCOMPLETE
+═══════════════════════════════════════════════════════════════════════════ */
+let _autocompleteEl = null;
+
+function handleWikiAutocomplete(textarea) {
+  const val = textarea.value;
+  const pos = textarea.selectionStart;
+  const before = val.slice(0, pos);
+  const m = before.match(/\[\[([^\]]{0,60})$/);
+  if (!m) { closeAutocomplete(); return; }
+  const q = m[1];
+  fetchAutocomplete(q, textarea, pos - q.length);
+}
+
+async function fetchAutocomplete(q, textarea, insertPos) {
+  try {
+    const results = await api.get('/api/links/autocomplete', { q });
+    if (!results || !results.length) { closeAutocomplete(); return; }
+    showAutocomplete(results, textarea, insertPos);
+  } catch { closeAutocomplete(); }
+}
+
+function showAutocomplete(items, textarea, insertPos) {
+  closeAutocomplete();
+  const rect = textarea.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'autocomplete-drop';
+  el.style.position = 'fixed';
+  el.style.left = (rect.left + 16) + 'px';
+  el.style.top  = (rect.top + 24)  + 'px';
+  el.innerHTML = items.slice(0,10).map(item =>
+    `<div class="autocomplete-item" data-title="${esc(item.title)}">
+      <span>${esc(item.title)}</span>
+      <span class="autocomplete-item-type">${esc(item.type||'')}</span>
+    </div>`
+  ).join('');
+  el.querySelectorAll('.autocomplete-item').forEach(row => {
+    row.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const title = row.dataset.title;
+      const val = textarea.value;
+      const before = val.slice(0, textarea.selectionStart);
+      const after  = val.slice(textarea.selectionStart);
+      const idx = before.lastIndexOf('[[');
+      textarea.value = before.slice(0, idx) + `[[${title}]]` + after;
+      textarea.selectionStart = textarea.selectionEnd = idx + title.length + 4;
+      closeAutocomplete();
+      textarea.focus();
+    });
+  });
+  document.body.appendChild(el);
+  _autocompleteEl = el;
+}
+
+function closeAutocomplete() {
+  _autocompleteEl?.remove();
+  _autocompleteEl = null;
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.autocomplete-drop')) closeAutocomplete();
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TASK MODAL (Create / Edit)
+═══════════════════════════════════════════════════════════════════════════ */
+function ctxCheckboxes(selected = []) {
+  return S.contexts.map(c => {
+    const checked = selected.includes(c.id);
+    const col = ctxColor(c.color);
+    return `<label class="form-check-label${checked?' checked':''}"
+        data-ctx-id="${esc(c.id)}" style="${checked?`border-color:${col};background:${col}22;color:${col}`:''}">
+      <input type="checkbox" name="ctx" value="${esc(c.id)}" ${checked?'checked':''}>
+      <span class="ctx-dot" style="background:${col}"></span>${esc(c.name)}
+    </label>`;
+  }).join('');
+}
+
+function openTaskModal(task = null) {
+  const isEdit = !!task;
+  const title = isEdit ? 'Edit task' : 'New task';
+  const selectedCtx = isEdit
+    ? (task.contexts||[]).map(c=>c.id)
+    : (S.ctx ? [S.ctx] : ['ctx-inbox']);
+
+  const body = `
+  <div class="form-group">
+    <label>Title *</label>
+    <input class="form-input" id="t-title" type="text" value="${esc(task?.title||'')}" placeholder="Task title">
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <textarea class="form-textarea" id="t-desc" placeholder="Optional details…">${esc(task?.description||'')}</textarea>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Status</label>
+      <select class="form-select" id="t-status">
+        ${['inbox','active','done','deferred','someday'].map(s =>
+          `<option value="${s}"${task?.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Importance</label>
+      <select class="form-select" id="t-importance">
+        ${['low','normal','high','critical'].map(i =>
+          `<option value="${i}"${(task?.importance||'normal')===i?' selected':''}>${i}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Due / Scheduled for</label>
+      <input class="form-input" id="t-due" type="date" value="${esc(task?.due_date||'')}">
+    </div>
+    <div class="form-group">
+      <label>Estimate</label>
+      <select class="form-select" id="t-est">
+        <option value="">—</option>
+        ${[5,15,30,60,90,120,180,240,480].map(m =>
+          `<option value="${m}"${task?.time_estimate_min===m?' selected':''}>${m<60?m+'m':m/60+'h'}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Contexts</label>
+    <div class="form-check-group" id="t-ctx-group">${ctxCheckboxes(selectedCtx)}</div>
+  </div>
+  <div class="form-group">
+    <label>Tags</label>
+    <input class="form-input" id="t-tags" type="text" value="${esc((task?.tags||[]).join(', '))}" placeholder="Comma-separated tags">
+  </div>`;
+
+  // Checkbox toggle styling
+  const buttons = [
+    { label: 'Cancel', cls: 'btn-secondary', fn: closeModal },
+    {
+      label: isEdit ? 'Save changes' : 'Create task',
+      cls: 'btn-primary',
+      fn: async () => {
+        const ttitle = document.getElementById('t-title')?.value?.trim();
+        if (!ttitle) { toast('Title is required', 'error'); return; }
+        const ctx_ids = [...document.querySelectorAll('#t-ctx-group input[type=checkbox]:checked')].map(i=>i.value);
+        const tag_names = (document.getElementById('t-tags')?.value||'').split(',').map(t=>t.trim()).filter(Boolean);
+        const payload = {
+          title: ttitle,
+          description: document.getElementById('t-desc')?.value||null,
+          status: document.getElementById('t-status')?.value || 'inbox',
+          importance: document.getElementById('t-importance')?.value || 'normal',
+          due_date: document.getElementById('t-due')?.value || null,
+          time_estimate_min: parseInt(document.getElementById('t-est')?.value)||null,
+          context_ids: ctx_ids.length ? ctx_ids : ['ctx-inbox'],
+          tag_names,
+        };
+        try {
+          if (isEdit) {
+            await api.patch(`/api/tasks/${task.id}`, payload);
+            toast('Task updated ✓', 'success');
+            closeModal(); navigate(S.view);
+          } else {
+            await api.post('/api/tasks/', payload);
+            toast('Task created ✓', 'success');
+            closeModal(); navigate(S.view);
+          }
+        } catch(e) {
+          if (!isEdit && (e.message.includes('409') || e.message.toLowerCase().includes('already'))) {
+            if (confirm(`A task named "${ttitle}" already exists. Create anyway?\n(A timestamp will be appended to keep it unique.)`)) {
+              const ts = new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+              payload.title = `${ttitle} · ${ts}`;
+              try {
+                await api.post('/api/tasks/', payload);
+                toast('Task created ✓', 'success');
+                closeModal(); navigate(S.view);
+              } catch(e2) { toast(e2.message, 'error'); }
+            }
+          } else { toast(e.message, 'error'); }
+        }
+      }
+    },
+  ];
+
+  openModal(title, body, buttons);
+
+  // Make check labels toggle properly
+  document.querySelectorAll('#t-ctx-group .form-check-label').forEach(label => {
+    label.addEventListener('click', () => {
+      const cb = label.querySelector('input');
+      const id = label.dataset.ctxId;
+      const ctx = S.contexts.find(c=>c.id===id);
+      const col = ctx ? ctxColor(ctx.color) : '#94a3b8';
+      setTimeout(() => {
+        if (cb.checked) {
+          label.classList.add('checked');
+          label.style.cssText = `border-color:${col};background:${col}22;color:${col}`;
+        } else {
+          label.classList.remove('checked');
+          label.style.cssText = '';
+        }
+      }, 0);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVENT MODAL (Create / View)
+═══════════════════════════════════════════════════════════════════════════ */
+function openEventModal(event = null) {
+  const isEdit = !!event;
+
+  // Parse a datetime string → {date:'YYYY-MM-DD', mins: minutesSinceMidnight}
+  function parseDT(str) {
+    if (!str) return null;
+    const d = new Date(str);
+    return { date: toYMD(d), mins: d.getHours() * 60 + d.getMinutes() };
+  }
+
+  // Round minutes up to nearest 30
+  function snap30(m) { return Math.ceil(m / 30) * 30 % 1440; }
+
+  const now = new Date();
+  const startMins = snap30(now.getHours() * 60 + now.getMinutes());
+  const endMins   = (startMins + 60) % 1440;
+  const todayStr  = toYMD(now);
+
+  const existStart = event ? parseDT(event.start_datetime) : null;
+  const existEnd   = event ? parseDT(event.end_datetime)   : null;
+
+  const defStartDate = existStart?.date ?? todayStr;
+  const defStartMins = existStart?.mins ?? startMins;
+  const defEndDate   = existEnd?.date   ?? defStartDate;
+  const defEndMins   = existEnd?.mins   ?? (defStartMins + 60) % 1440;
+
+  // Generate time <option> list, 30-min intervals
+  function timeOpts(selectedMins) {
+    const opts = [];
+    for (let h = 0; h < 24; h++) {
+      for (const m of [0, 30]) {
+        const val = h * 60 + m;
+        const hh = String(h).padStart(2,'0'), mm = m === 0 ? '00' : '30';
+        opts.push(`<option value="${val}"${val===selectedMins?' selected':''}>${hh}:${mm}</option>`);
+      }
+    }
+    return opts.join('');
+  }
+
+  const selectedCtx = isEdit ? (event.contexts||[]).map(c=>c.id) : (S.ctx ? [S.ctx] : []);
+
+  const body = `
+  <div class="form-group">
+    <label>Title *</label>
+    <input class="form-input" id="ev-title" type="text" value="${esc(event?.title||'')}" placeholder="Event title">
+  </div>
+  <div id="ev-dt-group" ${event?.all_day?'style="display:none"':''}>
+    <div class="form-group">
+      <label>Start</label>
+      <div class="dt-row">
+        <input class="form-input" id="ev-start-date" type="date" value="${esc(defStartDate)}">
+        <select class="time-select" id="ev-start-time">${timeOpts(defStartMins)}</select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>End</label>
+      <div class="dt-row">
+        <input class="form-input" id="ev-end-date" type="date" value="${esc(defEndDate)}" min="${esc(defStartDate)}">
+        <select class="time-select" id="ev-end-time">${timeOpts(defEndMins)}</select>
+      </div>
+    </div>
+  </div>
+  <div class="form-group" style="display:flex;align-items:center;gap:8px">
+    <input id="ev-allday" type="checkbox" ${event?.all_day?'checked':''}>
+    <label for="ev-allday" style="margin:0;font-size:13px">All-day event</label>
+  </div>
+  ${event?.all_day?`<div class="form-group">
+    <label>Date</label>
+    <input class="form-input" id="ev-date" type="date" value="${esc((event?.start_datetime||'').slice(0,10))}">
+  </div>`:''}
+  <div class="form-group">
+    <label>Location</label>
+    <input class="form-input" id="ev-loc" type="text" value="${esc(event?.location||'')}" placeholder="Optional">
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <textarea class="form-textarea" id="ev-desc" placeholder="Optional">${esc(event?.description||'')}</textarea>
+  </div>
+  <div class="form-group">
+    <label>Contexts</label>
+    <div class="form-check-group" id="ev-ctx-group">${ctxCheckboxes(selectedCtx)}</div>
+  </div>
+  ${event?.rrule ? `<div class="form-hint">⟳ Recurring: ${esc(event.rrule)}</div>` : ''}`;
+
+  function buildDTString(dateVal, minsVal) {
+    const pad = n => String(n).padStart(2,'0');
+    const h = Math.floor(minsVal / 60), m = minsVal % 60;
+    return `${dateVal}T${pad(h)}:${pad(m)}:00`;
+  }
+
+  const buttons = [
+    { label: 'Cancel', cls: 'btn-secondary', fn: closeModal },
+    ...(isEdit ? [{ label: 'Delete', cls: 'btn-danger', fn: () => confirmDeleteEvent(event) }] : []),
+    {
+      label: isEdit ? 'Save' : 'Create event',
+      cls: 'btn-primary',
+      fn: async () => {
+        const etitle = document.getElementById('ev-title')?.value?.trim();
+        if (!etitle) { toast('Title is required','error'); return; }
+        const allDay = document.getElementById('ev-allday')?.checked;
+        const ctx_ids = [...document.querySelectorAll('#ev-ctx-group input[type=checkbox]:checked')].map(i=>i.value);
+        let payload;
+        if (allDay) {
+          const d = document.getElementById('ev-date')?.value || todayYMD();
+          payload = { title: etitle, start_datetime: d+'T00:00:00', end_datetime: d+'T23:59:59', all_day: true, context_ids: ctx_ids };
+        } else {
+          const sd = document.getElementById('ev-start-date')?.value;
+          const st = parseInt(document.getElementById('ev-start-time')?.value||'0');
+          const ed = document.getElementById('ev-end-date')?.value;
+          const et = parseInt(document.getElementById('ev-end-time')?.value||'60');
+          const startStr = buildDTString(sd, st);
+          const endStr   = buildDTString(ed, et);
+          if (endStr <= startStr) { toast('End must be after start','error'); return; }
+          payload = { title: etitle, start_datetime: startStr, end_datetime: endStr, all_day: false,
+            location: document.getElementById('ev-loc')?.value||null,
+            description: document.getElementById('ev-desc')?.value||null,
+            context_ids: ctx_ids };
+        }
+        try {
+          if (isEdit) {
+            const editMode = event.rrule ? await askEditMode() : 'all';
+            if (!editMode) return;
+            await api.patch(`/api/events/${event.id}`, { ...payload, edit_mode: editMode,
+              original_date: event.id.includes('::') ? event.id.split('::')[1] : null });
+          } else {
+            await api.post('/api/events/', payload);
+          }
+          toast(isEdit ? 'Event updated ✓' : 'Event created ✓', 'success');
+          closeModal(); navigate(S.view);
+        } catch(err) {
+          if (err.message.includes('409') || err.message.toLowerCase().includes('already')) {
+            if (confirm(`An event named "${etitle}" already exists. Create anyway?\n(A timestamp will be appended to keep titles unique.)`)) {
+              const ts = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+              payload.title = `${etitle} · ${ts}`;
+              try {
+                if (isEdit) await api.patch(`/api/events/${event.id}`, payload);
+                else await api.post('/api/events/', payload);
+                toast('Event created ✓','success'); closeModal(); navigate(S.view);
+              } catch(e2) { toast(e2.message,'error'); }
+            }
+          } else { toast(err.message,'error'); }
+        }
+      }
+    },
+  ];
+
+  openModal(isEdit ? 'Event details' : 'New event', body, buttons);
+
+  // Sync end-date min whenever start-date changes
+  const sd = document.getElementById('ev-start-date');
+  const ed2 = document.getElementById('ev-end-date');
+  const st2 = document.getElementById('ev-start-time');
+  const et2 = document.getElementById('ev-end-time');
+  if (sd && ed2) {
+    sd.addEventListener('change', () => {
+      ed2.min = sd.value;
+      if (ed2.value < sd.value) ed2.value = sd.value;
+    });
+  }
+  // Auto-update end time to start+60 when start time changes, if end <= start
+  if (st2 && et2) {
+    st2.addEventListener('change', () => {
+      const newEnd = (parseInt(st2.value) + 60) % 1440;
+      if (parseInt(et2.value) <= parseInt(st2.value) || !isEdit) {
+        et2.value = newEnd;
+      }
+    });
+  }
+
+  // All-day toggle
+  document.getElementById('ev-allday')?.addEventListener('change', e => {
+    const dtg = document.getElementById('ev-dt-group');
+    if (dtg) dtg.style.display = e.target.checked ? 'none' : '';
+  });
+
+  // Context checkbox styling
+  document.querySelectorAll('#ev-ctx-group .form-check-label').forEach(label => {
+    label.addEventListener('click', () => {
+      const cb = label.querySelector('input');
+      const ctx = S.contexts.find(c=>c.id===label.dataset.ctxId);
+      const col = ctx ? ctxColor(ctx.color) : '#94a3b8';
+      setTimeout(() => {
+        label.classList.toggle('checked', cb.checked);
+        label.style.cssText = cb.checked ? `border-color:${col};background:${col}22;color:${col}` : '';
+      }, 0);
+    });
+  });
+}
+
+function confirmDeleteEvent(event) {
+  if (!event.rrule) {
+    if (confirm(`Delete "${event.title}"?`)) {
+      api.del(`/api/events/${event.id}`, { edit_mode: 'all' })
+        .then(() => { toast('Event deleted','success'); closeModal(); navigate(S.view); })
+        .catch(e => toast(e.message,'error'));
+    }
+    return;
+  }
+  const choice = prompt('Delete: [1] Just this occurrence  [2] This and future  [3] All occurrences\nEnter 1, 2 or 3:');
+  const modes = {'1':'this','2':'future','3':'all'};
+  const mode = modes[choice?.trim()];
+  if (!mode) return;
+  api.del(`/api/events/${event.id}`, { edit_mode: mode, original_date: event.id.includes('::') ? event.id.split('::')[1] : null })
+    .then(() => { toast('Event deleted','success'); closeModal(); navigate(S.view); })
+    .catch(e => toast(e.message,'error'));
+}
+
+function askEditMode() {
+  return new Promise(resolve => {
+    const choice = prompt('Edit: [1] Just this occurrence  [2] This and future  [3] All occurrences\nEnter 1, 2 or 3:');
+    const modes = {'1':'this','2':'future','3':'all'};
+    resolve(modes[choice?.trim()] || null);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NOTE CREATION (in-tab, not modal)
+═══════════════════════════════════════════════════════════════════════════ */
+function startNewNote() {
+  S.noteId = null;
+  document.querySelectorAll('.note-item').forEach(el => el.classList.remove('active'));
+  const panel = document.getElementById('notes-content');
+  if (!panel) return;
+  panel.innerHTML = buildNotePanel({ id: null, title: '', content: '', contexts: [], tags: [] }, true);
+  bindNotePanel(null, true);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLOBAL EVENT DELEGATION
+═══════════════════════════════════════════════════════════════════════════ */
+document.getElementById('view').addEventListener('click', async e => {
+  // Don't intercept clicks inside modal
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+
+  const action = el.dataset.action;
+  const id     = el.dataset.id;
+  const date   = el.dataset.date;
+
+  switch(action) {
+
+    case 'toggle-task': {
+      e.stopPropagation();
+      try {
+        const card = el.closest('.task-card, .task-card-full');
+        const isDone = card?.classList.contains('done');
+        await api.patch(`/api/tasks/${id}`, { status: isDone ? 'inbox' : 'done' });
+        navigate(S.view);
+      } catch(err) { toast(err.message,'error'); }
+      break;
+    }
+
+    case 'edit-task': {
+      // Don't trigger on checkbox or delete button
+      if (e.target.closest('[data-action="toggle-task"], [data-action="delete-task"]')) return;
+      try {
+        const task = await api.get(`/api/tasks/${id}`);
+        openTaskModal(task);
+      } catch(err) { toast(err.message,'error'); }
+      break;
+    }
+
+    case 'delete-task': {
+      e.stopPropagation();
+      if (!confirm('Delete this task?')) return;
+      try {
+        await api.del(`/api/tasks/${id}`);
+        toast('Task deleted','success');
+        navigate(S.view);
+      } catch(err) { toast(err.message,'error'); }
+      break;
+    }
+
+    case 'new-task': openTaskModal(); break;
+
+    case 'view-event': {
+      try {
+        const ev = await api.get(`/api/events/${id}`);
+        openEventModal(ev);
+      } catch(err) { toast(err.message,'error'); }
+      break;
+    }
+
+    case 'new-event': openEventModal(); break;
+
+    case 'day-click': {
+      S.date = new Date(date + 'T12:00:00');
+      navigate('week');
+      break;
+    }
+
+    case 'select-note': loadNote(id); break;
+
+    case 'delete-note': {
+      e.stopPropagation();
+      if (!confirm('Delete this note?')) return;
+      try {
+        await api.del(`/api/notes/${id}`);
+        toast('Note deleted','success');
+        S.noteId = null;
+        renderNotes();
+      } catch(err) { toast(err.message,'error'); }
+      break;
+    }
+
+    case 'new-note': startNewNote(); break;
+
+    case 'open-link': {
+      const linkTitle = el.dataset.title || '';
+      // Try to find a note with this title and open it
+      api.get('/api/links/autocomplete', { q: linkTitle }).then(results => {
+        if (!results?.length) { toast(`No object found: ${linkTitle}`, 'error'); return; }
+        const exact = results.find(r => r.title.toLowerCase() === linkTitle.toLowerCase()) || results[0];
+        if (exact.type === 'note') {
+          navigate('notes');
+          setTimeout(() => loadNote(exact.id), 300);
+        } else if (exact.type === 'task') {
+          navigate('tasks');
+        } else if (exact.type === 'journal') {
+          navigate('journal');
+          setTimeout(() => loadJournalEntry(exact.id.slice(0,10), []), 300);
+        } else if (exact.type === 'event') {
+          api.get(`/api/events/${exact.id}`).then(ev => openEventModal(ev)).catch(() => {});
+        }
+      }).catch(() => toast(`Could not resolve link: ${linkTitle}`, 'error'));
+      break;
+    }
+
+    case 'day-prev': {
+      S.date = addDays(S.date, -1);
+      renderDay();
+      break;
+    }
+
+    case 'day-next': {
+      S.date = addDays(S.date, 1);
+      renderDay();
+      break;
+    }
+
+    case 'day-nav': {
+      // Month-cell background clicked → navigate to Day view for that date
+      if (e.target.closest('[data-action="view-event"]')) return; // let view-event handle it
+      S.date = new Date(date + 'T12:00:00');
+      navigate('day');
+      break;
+    }
+
+    case 'select-journal': {
+      loadJournalEntry(date, []);
+      break;
+    }
+
+    case 'new-journal': {
+      loadJournalEntry(todayYMD(), []);
+      S.journalDate = todayYMD();
+      break;
+    }
+
+    case 'delete-journal': {
+      if (!confirm('Delete this journal entry?')) return;
+      try {
+        await api.del(`/api/journal/${id}`);
+        toast('Entry deleted','success');
+        S.journalDate = null;
+        renderJournal();
+      } catch(err) { toast(err.message,'error'); }
+      break;
+    }
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════════════════════ */
+function setView(html) {
+  document.getElementById('view').innerHTML = html;
+}
+
+function navigate(view) {
+  S.view = view;
+  document.querySelectorAll('.nav-link').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === view);
+  });
+  location.hash = '#' + view;
+
+  switch(view) {
+    case 'day':     renderDay();     break;
+    case 'week':    renderWeek();    break;
+    case 'month':   renderMonth();   break;
+    case 'tasks':   renderTasks();   break;
+    case 'notes':   renderNotes();   break;
+    case 'journal': renderJournal(); break;
+    default:        renderDay();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════════════════ */
+async function init() {
+  // Wire up sidebar nav
+  document.querySelectorAll('.nav-link[data-view]').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.view));
+  });
+
+  // Load contexts
+  await loadContexts();
+
+  // Bind quick capture
+  bindCapture();
+
+  // Route from hash
+  const hashView = location.hash.replace('#','');
+  const validViews = ['day','today','week','month','tasks','notes','journal'];
+  const initialView = validViews.includes(hashView) ? (hashView === 'today' ? 'day' : hashView) : 'day';
+  navigate(initialView);
+
+  // Handle browser back/forward
+  window.addEventListener('hashchange', () => {
+    const v = location.hash.replace('#','');
+    if (validViews.includes(v) && v !== S.view) navigate(v);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
