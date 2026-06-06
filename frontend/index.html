@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1057,6 +1057,66 @@ a { color: inherit; text-decoration: none; }
 .divider { height: 1px; background: var(--bd); margin: 8px 0; }
 .text-muted { color: var(--tx-3); }
 .nowrap { white-space: nowrap; }
+
+/* ─── Note tabs ─────────────────────────────────────────────────────────── */
+.notes-main {
+  display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: hidden;
+}
+.note-tab-bar {
+  display: flex; align-items: center; gap: 2px;
+  padding: 6px 8px 0; background: var(--bg-1);
+  border-bottom: 1px solid var(--bd-1); flex-shrink: 0; overflow-x: auto;
+  scrollbar-width: none;
+}
+.note-tab-bar::-webkit-scrollbar { display: none; }
+.note-tab {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px 6px 0 0;
+  background: var(--bg-2); border: 1px solid var(--bd-1); border-bottom: none;
+  font-size: 12.5px; cursor: pointer; white-space: nowrap;
+  max-width: 180px; min-width: 60px; color: var(--tx-2);
+  transition: background .15s;
+}
+.note-tab.active { background: var(--bg); color: var(--tx); font-weight: 500; }
+.note-tab:hover:not(.active) { background: var(--bg-hover); }
+.note-tab-title { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.note-tab-close {
+  opacity: .5; font-size: 14px; line-height: 1; flex-shrink: 0;
+  border-radius: 3px; padding: 0 2px;
+}
+.note-tab-close:hover { opacity: 1; background: var(--bg-hover); }
+.note-tab-add {
+  padding: 4px 8px; background: none; border: 1px dashed var(--bd-2);
+  border-radius: 6px 6px 0 0; color: var(--tx-3); cursor: pointer;
+  font-size: 16px; line-height: 1; flex-shrink: 0;
+}
+.note-tab-add:hover { color: var(--ac); border-color: var(--ac); }
+
+/* ─── Color swatches ─────────────────────────────────────────────────────── */
+.color-swatches {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  max-width: 200px;
+}
+.color-swatch {
+  width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; flex-shrink: 0; transition: transform .1s;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.active { border-color: var(--tx); box-shadow: 0 0 0 1px var(--bg); }
+.hex-swatch { border-radius: 4px; font-size: 10px; display: flex; align-items: center; justify-content: center; color: var(--tx); }
+
+/* ─── Nav anchor buttons (Today / This week / This month) ───────────────── */
+.btn-anchor {
+  padding: 3px 10px; font-size: 12px; font-weight: 500;
+  background: var(--bg-2); border: 1px solid var(--bd-2);
+  border-radius: 6px; cursor: pointer; color: var(--tx-2);
+  transition: background .15s, color .15s;
+}
+.btn-anchor:hover { background: var(--bg-hover); color: var(--tx); }
+
+/* ─── Journal save status ────────────────────────────────────────────────── */
+.journal-save-status { font-size: 12px; color: var(--tx-3); }
+
 </style>
 </head>
 <body>
@@ -1100,6 +1160,7 @@ a { color: inherit; text-decoration: none; }
 
     <div class="sidebar-foot">
       <a href="/api/export/all.ics" target="_blank">Subscribe .ics ↗</a>
+      <a href="#" id="manage-contexts-btn" style="display:block;margin-top:6px;color:var(--tx-3);font-size:12px">⚙ Manage contexts</a>
     </div>
   </nav>
 
@@ -1158,7 +1219,10 @@ const S = {
   journalId: null,
   journalDate: null,  // ISO string YYYY-MM-DD
   // tasks
-  taskStatus: '',
+  taskStatus: 'inbox',
+  // note tabs
+  noteTabs: [],      // [{id, title}]
+  noteActiveTab: null,
   taskSort: 'priority',
   // week events cache
   weekEvents: {},     // YYYY-MM-DD → [events]
@@ -1211,7 +1275,7 @@ function fmtDateShort(d) {
 function fmtTime(dtStr) {
   if (!dtStr) return '';
   const d = new Date(dtStr);
-  return d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function fmtMonthYear(d) {
@@ -1238,8 +1302,10 @@ function todayYMD() {
   return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
 }
 
-function dueLabel(dueDateStr) {
+function dueLabel(dueDateStr, status) {
   if (!dueDateStr) return '';
+  // Done tasks don't need urgency colouring — just show the date neutrally
+  if (status === 'done') return `<span class="due-normal">${fmtDateShort(dueDateStr)}</span>`;
   const today = new Date(); today.setHours(0,0,0,0);
   const due = new Date(dueDateStr + 'T00:00:00');
   const diff = Math.round((due - today) / 86400000);
@@ -1409,9 +1475,9 @@ function showAddChooser() {
 /* ═══════════════════════════════════════════════════════════════════════════
    EVENT LAYOUT (for timeline)
 ═══════════════════════════════════════════════════════════════════════════ */
-const TL_START = 7;   // 7am
-const TL_END   = 22;  // 10pm
-const TL_PX    = 60;  // px per hour
+const TL_START = 0;    // midnight
+const TL_END   = 24;   // end of day (full 24h)
+const TL_PX    = 60;   // px per hour
 
 function layoutTimelineEvents(events) {
   const timed = events.filter(e => !e.all_day).map(e => ({
@@ -1478,7 +1544,7 @@ function buildDayHTML(data, dayYMD, isToday) {
 
   const hours = Array.from({ length: TL_END - TL_START }, (_, i) => i + TL_START);
   const hourRows = hours.map(h => {
-    const label = h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`;
+    const label = `${String(h).padStart(2,'0')}:00`;
     return `<div class="tl-hour"><span class="tl-label">${label}</span></div>`;
   }).join('');
 
@@ -1518,6 +1584,7 @@ function buildDayHTML(data, dayYMD, isToday) {
   <div class="view-header">
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn btn-ghost btn-sm" data-action="day-prev">←</button>
+      <button class="btn-anchor" data-action="goto-today">Today</button>
       <span class="view-title">${titleLabel}</span>
       <button class="btn btn-ghost btn-sm" data-action="day-next">→</button>
     </div>
@@ -1570,7 +1637,7 @@ function buildTaskCard(t, full = false) {
     <div class="task-body">
       <div class="task-title">${esc(t.title)} ${importanceBadge(t.importance)}</div>
       <div class="task-meta">
-        ${t.due_date ? dueLabel(t.due_date) : ''}
+        ${t.due_date ? dueLabel(t.due_date, t.status) : ''}
         ${ctxChips(t.contexts)}
         ${tagChips(t.tags)}
         ${statusBadge(t.status)}
@@ -1627,7 +1694,7 @@ async function renderWeek() {
     const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const weekDates = Array.from({length:7}, (_,i) => toYMD(addDays(ws, i)));
 
-    // Expand multi-day events across all days they span within this week
+    // Expand multi-day events. _isStart/_isEnd/_isMiddle drive per-day rendering below.
     const byDate = {};
     weekDates.forEach(d => byDate[d] = []);
     (events||[]).forEach(ev => {
@@ -1636,12 +1703,39 @@ async function renderWeek() {
       const isMulti  = endYMD !== startYMD;
       weekDates.forEach(d => {
         if (d >= startYMD && d <= endYMD) {
-          byDate[d].push({ ...ev, _isMulti: isMulti, _isStart: d === startYMD, _isEnd: d === endYMD });
+          const _isStart  = d === startYMD;
+          const _isEnd    = d === endYMD;
+          const _isMiddle = !_isStart && !_isEnd;
+          byDate[d].push({ ...ev, _isMulti: isMulti, _isStart, _isEnd, _isMiddle });
         }
       });
     });
 
-    const HOURS = [8,9,10,11,12,13,14,15,16,17];
+    // Dynamic hour range. For multi-day non-all-day events:
+    //   start day → show at actual start hour
+    //   end day   → show at midnight (hour 0) so include 0 in range
+    //   middle    → all-day treatment (top slot)
+    let minHour = 8, maxHour = 18;
+    (events||[]).forEach(ev => {
+      if (!ev.all_day) {
+        const sh = new Date(ev.start_datetime).getHours();
+        const startD = toYMD(new Date(ev.start_datetime));
+        const endD   = ev.end_datetime ? toYMD(new Date(ev.end_datetime)) : startD;
+        if (sh < minHour) minHour = sh;
+        if (sh + 1 > maxHour) maxHour = sh + 1;
+        if (endD !== startD) {
+          minHour = 0;   // end day starts at midnight — must be in grid
+          const eh = new Date(ev.end_datetime).getHours();
+          if (eh + 1 > maxHour) maxHour = eh + 1;
+        } else {
+          const eh = new Date(ev.end_datetime).getHours();
+          if (eh + 1 > maxHour) maxHour = eh + 1;
+        }
+      }
+    });
+    minHour = Math.max(0,  minHour - 1);
+    maxHour = Math.min(24, maxHour + 1);
+    const HOURS = Array.from({length: maxHour - minHour}, (_, i) => i + minHour);
 
     // Header row — corner cell must be a real element so the grid has 8 items in row 1
     const heads = [
@@ -1656,22 +1750,28 @@ async function renderWeek() {
       }),
     ].join('');
 
-    // Time rows
+    // Time rows — use LOCAL hours so events land in the right slot regardless of UTC offset
     const rows = HOURS.map(h => {
-      const label = h < 12 ? `${h}a` : h===12 ? '12p' : `${h-12}p`;
+      const label = `${String(h).padStart(2,'0')}:00`;
       const cells = weekDates.map(ymd => {
         const evs = byDate[ymd]?.filter(ev => {
-          if (ev.all_day || ev._isMulti) return h === 8; // show spanning/all-day at top slot
-          const evH = parseInt((ev.start_datetime||'').slice(11,13));
-          return evH === h;
+          if (ev.all_day)    return h === minHour;   // all-day: always top slot
+          if (ev._isMiddle)  return h === minHour;   // middle day of multi-day: all-day treatment
+          if (ev._isStart)   return new Date(ev.start_datetime).getHours() === h;
+          if (ev._isEnd)     return h === 0;         // end day starts at midnight
+          return new Date(ev.start_datetime).getHours() === h;
         }) || [];
         const pills = evs.map(ev => {
           const color = ev.contexts?.[0] ? ctxColor(ev.contexts[0].color) : 'var(--ac)';
           const mc = ev._isMulti
             ? (ev._isStart ? 'multiday-start' : ev._isEnd ? 'multiday-end' : 'multiday')
             : '';
+          // Show a time hint on start/end segments of multi-day events
+          const timeHint = (ev._isMulti && ev._isStart) ? ` ${fmtTime(ev.start_datetime)}→`
+                         : (ev._isMulti && ev._isEnd)   ? `→${fmtTime(ev.end_datetime)}`
+                         : '';
           return `<span class="week-ev-pill${mc?' '+mc:''}" style="background:${color}"
-            data-action="view-event" data-id="${esc(ev.id)}">${esc(ev.title)}</span>`;
+            data-action="view-event" data-id="${esc(ev.id)}">${esc(ev.title)}${timeHint}</span>`;
         }).join('');
         return `<div class="week-cell">${pills}</div>`;
       }).join('');
@@ -1688,6 +1788,7 @@ async function renderWeek() {
     </div>
     <div class="week-nav">
       <button class="btn btn-ghost btn-sm" id="week-prev">← Prev</button>
+      <button class="btn-anchor" id="week-this">This week</button>
       <span class="week-nav-label">${wLabel}</span>
       <button class="btn btn-ghost btn-sm" id="week-next">Next →</button>
     </div>
@@ -1697,6 +1798,7 @@ async function renderWeek() {
     </div>`);
 
     document.getElementById('week-prev').addEventListener('click', () => { S.date = addDays(weekStart(S.date), -7); renderWeek(); });
+    document.getElementById('week-this')?.addEventListener('click', () => { S.date = new Date(); renderWeek(); });
     document.getElementById('week-next').addEventListener('click', () => { S.date = addDays(weekStart(S.date),  7); renderWeek(); });
   } catch(e) { setView(`<div class="err-msg">Failed to load week view: ${esc(e.message)}</div>`); }
 }
@@ -1770,6 +1872,7 @@ async function renderMonth() {
     </div>
     <div class="month-nav">
       <button class="btn btn-ghost btn-sm" id="mo-prev">← Prev</button>
+      <button class="btn-anchor" id="mo-this">This month</button>
       <span class="month-nav-label">${fmtMonthYear(S.date)}</span>
       <button class="btn btn-ghost btn-sm" id="mo-next">Next →</button>
     </div>
@@ -1779,6 +1882,7 @@ async function renderMonth() {
     </div>`);
 
     document.getElementById('mo-prev').addEventListener('click', () => { S.date = new Date(y, m-1, 1); renderMonth(); });
+    document.getElementById('mo-this')?.addEventListener('click', () => { S.date = new Date(); renderMonth(); });
     document.getElementById('mo-next').addEventListener('click', () => { S.date = new Date(y, m+1, 1); renderMonth(); });
   } catch(e) { setView(`<div class="err-msg">Failed to load month view: ${esc(e.message)}</div>`); }
 }
@@ -1852,14 +1956,31 @@ async function renderNotes(q = '') {
     const notes = await api.get('/api/notes/', params);
     setView(buildNotesHTML(notes, q));
     bindNotes(notes, q);
-    if (S.noteId) loadNote(S.noteId);
+    // Restore active tab content if a tab was open
+    if (S.noteActiveTab && !S.noteActiveTab.startsWith('new-')) {
+      loadNote(S.noteActiveTab);
+    }
   } catch(e) { setView(`<div class="err-msg">Failed to load notes: ${esc(e.message)}</div>`); }
+}
+
+function _renderTabBar() {
+  return S.noteTabs.map(t => `
+    <div class="note-tab${t.id===S.noteActiveTab?' active':''}" data-tab-id="${esc(t.id)}">
+      <span class="note-tab-title" data-action="switch-tab" data-id="${esc(t.id)}">${esc(t.title||'Untitled')}</span>
+      <span class="note-tab-close" data-action="close-tab" data-id="${esc(t.id)}" title="Close">×</span>
+    </div>
+  `).join('') + `<button class="note-tab-add" data-action="new-note" title="New note">+</button>`;
+}
+
+function refreshTabBar() {
+  const bar = document.getElementById('note-tab-bar');
+  if (bar) bar.innerHTML = _renderTabBar();
 }
 
 function buildNotesHTML(notes, q = '') {
   const listHTML = notes.length
     ? notes.map(n => `
-      <div class="note-item${S.noteId===n.id?' active':''}" data-action="select-note" data-id="${esc(n.id)}">
+      <div class="note-item${S.noteActiveTab===n.id?' active':''}" data-action="select-note" data-id="${esc(n.id)}">
         <div class="note-item-title">${esc(n.title)}</div>
         <div class="note-item-meta">${fmtDateShort(n.updated_at)} ${ctxChips(n.contexts)}</div>
       </div>`).join('')
@@ -1868,7 +1989,6 @@ function buildNotesHTML(notes, q = '') {
   return `
   <div class="view-header" style="padding-bottom:0">
     <span class="view-title">Notes</span>
-    <button class="btn btn-primary btn-sm" data-action="new-note">+ Note</button>
   </div>
   <div class="notes-layout">
     <div class="notes-sidebar">
@@ -1877,8 +1997,13 @@ function buildNotesHTML(notes, q = '') {
       </div>
       <div class="notes-list">${listHTML}</div>
     </div>
-    <div class="notes-content" id="notes-content">
-      <div class="note-empty"><span class="text-muted">Select a note to view it</span></div>
+    <div class="notes-main">
+      <div class="note-tab-bar" id="note-tab-bar">${_renderTabBar()}</div>
+      <div class="notes-content" id="notes-content">
+        ${S.noteActiveTab
+          ? '<div class="loading" style="padding:40px"><div class="spinner"></div></div>'
+          : '<div class="note-empty"><span class="text-muted">Open a note from the sidebar or press +</span></div>'}
+      </div>
     </div>
   </div>`;
 }
@@ -1891,17 +2016,50 @@ function bindNotes(notes, q) {
 }
 
 async function loadNote(noteId) {
-  S.noteId = noteId;
-  const panel = document.getElementById('notes-content');
-  if (!panel) return;
-  panel.innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
-  try {
-    const note = await api.get(`/api/notes/${noteId}`);
-    panel.innerHTML = buildNotePanel(note);
-    bindNotePanel(note);
-    // Update sidebar active state
-    document.querySelectorAll('.note-item').forEach(el => el.classList.toggle('active', el.dataset.id === noteId));
-  } catch(e) { panel.innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+  // Add tab if not already open; switch to it if it is
+  const existing = S.noteTabs.find(t => t.id === noteId);
+  if (!existing) {
+    // We need the title — fetch the full note
+    const panel = document.getElementById('notes-content');
+    if (panel) panel.innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
+    try {
+      const note = await api.get(`/api/notes/${noteId}`);
+      S.noteTabs.push({ id: noteId, title: note.title });
+      S.noteActiveTab = noteId;
+      refreshTabBar();
+      if (panel) { panel.innerHTML = buildNotePanel(note); bindNotePanel(note); }
+    } catch(e) { if (panel) panel.innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+  } else {
+    // Already open — just switch (re-fetch content in case it changed externally)
+    S.noteActiveTab = noteId;
+    refreshTabBar();
+    const panel = document.getElementById('notes-content');
+    if (panel) panel.innerHTML = '<div class="loading" style="padding:40px"><div class="spinner"></div></div>';
+    try {
+      const note = await api.get(`/api/notes/${noteId}`);
+      if (panel) { panel.innerHTML = buildNotePanel(note); bindNotePanel(note); }
+    } catch(e) { if (panel) panel.innerHTML = `<div class="err-msg">${esc(e.message)}</div>`; }
+  }
+  // Sync sidebar highlight
+  document.querySelectorAll('.note-item').forEach(el => el.classList.toggle('active', el.dataset.id === noteId));
+}
+
+function closeNoteTab(tabId) {
+  const idx = S.noteTabs.findIndex(t => t.id === tabId);
+  if (idx < 0) return;
+  S.noteTabs.splice(idx, 1);
+  if (S.noteActiveTab === tabId) {
+    const next = S.noteTabs[idx] || S.noteTabs[idx - 1];
+    S.noteActiveTab = next?.id || null;
+  }
+  refreshTabBar();
+  if (S.noteActiveTab) {
+    loadNote(S.noteActiveTab);
+  } else {
+    const panel = document.getElementById('notes-content');
+    if (panel) panel.innerHTML = '<div class="note-empty"><span class="text-muted">Open a note from the sidebar or press +</span></div>';
+    document.querySelectorAll('.note-item').forEach(el => el.classList.remove('active'));
+  }
 }
 
 function buildNotePanel(note, isNew = false) {
@@ -1938,7 +2096,7 @@ function refreshLinksPanel(content) {
       }</div>` : '';
 }
 
-function bindNotePanel(note, isNew = false) {
+function bindNotePanel(note, isNew = false, _tempTabId = null) {
   const textarea = document.getElementById('note-body');
   const saveBtn  = document.getElementById('note-save');
 
@@ -1955,7 +2113,13 @@ function bindNotePanel(note, isNew = false) {
           tag_names: [],
         });
         toast('Note created ✓', 'success');
-        S.noteId = note2.id;
+        // Update the tab entry from temp ID to real note ID
+        if (_tempTabId) {
+          const ti = S.noteTabs.findIndex(t => t.id === _tempTabId);
+          if (ti >= 0) { S.noteTabs[ti] = { id: note2.id, title: note2.title }; }
+          S.noteActiveTab = note2.id;
+          refreshTabBar();
+        }
         renderNotes();
       }
 
@@ -1965,7 +2129,15 @@ function bindNotePanel(note, isNew = false) {
         } else {
           await api.patch(`/api/notes/${note.id}`, { title, content });
           toast('Note saved ✓', 'success');
-          renderNotes();
+          // Update tab title in case title changed
+          const ti2 = S.noteTabs.findIndex(t => t.id === note?.id);
+          if (ti2 >= 0) S.noteTabs[ti2].title = title;
+          refreshTabBar();
+          // Refresh sidebar list but don't destroy open tabs
+          const q2 = document.getElementById('notes-search')?.value?.trim() || '';
+          const notes2 = await api.get('/api/notes/', {...(q2?{q:q2}:{}), ...(S.ctx?{context_id:S.ctx}:{})}).catch(()=>[]);
+          const sl = document.querySelector('.notes-list');
+          if (sl) sl.innerHTML = buildNotesHTML(notes2, q2).match(/<div class="notes-list">([\s\S]*?)<\/div>/)?.[1] || '';
         }
       } catch(e) {
         if ((isNew || !note?.id) && (e.message.includes('409') || e.message.toLowerCase().includes('already'))) {
@@ -1992,6 +2164,25 @@ function bindNotePanel(note, isNew = false) {
       handleWikiAutocomplete(textarea);
       refreshLinksPanel(textarea.value);
     });
+  }
+
+  // Auto-save for existing notes (2 s after last keystroke, silently)
+  if (!isNew && note?.id) {
+    const _noteAutoSave = debounce(async () => {
+      const titleVal = document.getElementById('note-title')?.value?.trim();
+      const bodyVal  = textarea?.value ?? '';
+      if (!titleVal) return;   // don't save without a title
+      try {
+        await api.patch(`/api/notes/${note.id}`, { title: titleVal, content: bodyVal });
+        const sb = document.getElementById('note-save');
+        if (sb) { sb.textContent = 'Saved ✓'; setTimeout(() => { sb.textContent = 'Save'; }, 1500); }
+      } catch(e) {
+        toast('Auto-save failed: ' + e.message, 'error');
+      }
+    }, 2000);
+    if (textarea) textarea.addEventListener('input', _noteAutoSave);
+    const titleInp = document.getElementById('note-title');
+    if (titleInp) titleInp.addEventListener('input', _noteAutoSave);
   }
 }
 
@@ -2073,12 +2264,16 @@ function buildJournalPanel(entry, dateStr) {
     <span class="journal-date-label">${dateLabel}</span>
     <input class="journal-title-input" id="jt-title" type="text"
       value="${esc(jTitle)}" placeholder="Optional title…">
-    ${entry ? `<button class="btn btn-danger btn-sm" data-action="delete-journal" data-id="${esc(entry.id)}">Delete</button>` : ''}
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="journal-save-status" id="jt-status"></span>
+      <button class="btn btn-primary btn-sm" id="jt-save">Save</button>
+      ${entry ? `<button class="btn btn-danger btn-sm" data-action="delete-journal" data-id="${esc(entry.id)}">Delete</button>` : ''}
+    </div>
   </div>
   <textarea class="journal-body-textarea" id="jt-body"
-    placeholder="Write today's thoughts…">${esc(content)}</textarea>
+    placeholder="Write today's thoughts… (type [[ for wiki-links)">${esc(content)}</textarea>
   <div id="journal-links-panel">${linksHTML}</div>
-  <div class="journal-status" id="jt-status"></div>`;
+  <div id="journal-tags-panel"></div>`;
 }
 
 function bindJournalPanel(entry, dateStr) {
@@ -2136,6 +2331,46 @@ function bindJournalPanel(entry, dateStr) {
 
   body.addEventListener('input', doSave);
   if (titleInput) titleInput.addEventListener('input', doSave);
+
+  // Explicit save button
+  document.getElementById('jt-save')?.addEventListener('click', async () => {
+    const st = document.getElementById('jt-status');
+    if (st) st.textContent = 'Saving…';
+    const content2 = body.value;
+    const title2   = titleInput?.value?.trim() || null;
+    try {
+      if (currentEntryId) {
+        await api.patch(`/api/journal/${currentEntryId}`, { content: content2, ...(title2!=null?{title:title2}:{}) });
+      } else {
+        const r = await api.post('/api/journal/', { entry_date: dateStr, content: content2, ...(title2?{title:title2}:{}), context_ids:[], tag_names:[] });
+        currentEntryId = r.id;
+        renderJournal(); return;
+      }
+      if (st) { st.textContent = 'Saved ✓'; setTimeout(()=>{ if(st) st.textContent=''; }, 2000); }
+    } catch(e) { if (st) st.textContent = 'Error'; toast(e.message, 'error'); }
+  });
+
+  // Load top tags for quick tagging
+  api.get('/api/tags/').then(tags => {
+    const tp = document.getElementById('journal-tags-panel');
+    if (!tp || !tags?.length) return;
+    const top = tags.sort((a,b) => b.count - a.count).slice(0, 12);
+    tp.innerHTML = `<div class="links-panel"><span class="links-panel-label">Top tags</span>${
+      top.map(t => `<span class="link-chip" style="cursor:default">#${esc(t.name)}</span>`).join('')
+    }</div>`;
+  }).catch(()=>{});
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL LINKS PANEL HELPER
+═══════════════════════════════════════════════════════════════════════════ */
+function buildModalLinksPanel(content) {
+  const links = extractWikiLinks(content || '');
+  if (!links.length) return '';
+  return `<div class="links-panel" style="margin-top:8px">
+    <span class="links-panel-label">Links in description</span>
+    ${links.map(l => `<span class="link-chip" data-action="open-link" data-title="${esc(l)}">[[${esc(l)}]]</span>`).join('')}
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2230,8 +2465,8 @@ function openTaskModal(task = null) {
     <input class="form-input" id="t-title" type="text" value="${esc(task?.title||'')}" placeholder="Task title">
   </div>
   <div class="form-group">
-    <label>Description</label>
-    <textarea class="form-textarea" id="t-desc" placeholder="Optional details…">${esc(task?.description||'')}</textarea>
+    <label>Contexts</label>
+    <div class="form-check-group" id="t-ctx-group">${ctxCheckboxes(selectedCtx)}</div>
   </div>
   <div class="form-row">
     <div class="form-group">
@@ -2264,13 +2499,14 @@ function openTaskModal(task = null) {
     </div>
   </div>
   <div class="form-group">
-    <label>Contexts</label>
-    <div class="form-check-group" id="t-ctx-group">${ctxCheckboxes(selectedCtx)}</div>
-  </div>
-  <div class="form-group">
     <label>Tags</label>
     <input class="form-input" id="t-tags" type="text" value="${esc((task?.tags||[]).join(', '))}" placeholder="Comma-separated tags">
-  </div>`;
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <textarea class="form-textarea" id="t-desc" placeholder="Optional details… (type [[ for wiki-links)">${esc(task?.description||'')}</textarea>
+  </div>
+  <div id="t-links-panel">${buildModalLinksPanel(task?.description)}</div>`;
 
   // Checkbox toggle styling
   const buttons = [
@@ -2321,6 +2557,14 @@ function openTaskModal(task = null) {
   ];
 
   openModal(title, body, buttons);
+
+  // Wiki-link autocomplete + live links panel in the description field
+  const taskDescTA = document.getElementById('t-desc');
+  if (taskDescTA) taskDescTA.addEventListener('input', () => {
+    handleWikiAutocomplete(taskDescTA);
+    const lp = document.getElementById('t-links-panel');
+    if (lp) lp.innerHTML = buildModalLinksPanel(taskDescTA.value);
+  });
 
   // Make check labels toggle properly
   document.querySelectorAll('#t-ctx-group .form-check-label').forEach(label => {
@@ -2391,6 +2635,18 @@ function openEventModal(event = null) {
     <label>Title *</label>
     <input class="form-input" id="ev-title" type="text" value="${esc(event?.title||'')}" placeholder="Event title">
   </div>
+  <div class="form-group">
+    <label>Contexts</label>
+    <div class="form-check-group" id="ev-ctx-group">${ctxCheckboxes(selectedCtx)}</div>
+  </div>
+  <div class="form-group" style="display:flex;align-items:center;gap:8px">
+    <input id="ev-allday" type="checkbox" ${event?.all_day?'checked':''}>
+    <label for="ev-allday" style="margin:0;font-size:13px">All-day event</label>
+  </div>
+  ${event?.all_day?`<div class="form-group">
+    <label>Date</label>
+    <input class="form-input" id="ev-date" type="date" value="${esc((event?.start_datetime||'').slice(0,10))}">
+  </div>`:''}
   <div id="ev-dt-group" ${event?.all_day?'style="display:none"':''}>
     <div class="form-group">
       <label>Start</label>
@@ -2407,26 +2663,15 @@ function openEventModal(event = null) {
       </div>
     </div>
   </div>
-  <div class="form-group" style="display:flex;align-items:center;gap:8px">
-    <input id="ev-allday" type="checkbox" ${event?.all_day?'checked':''}>
-    <label for="ev-allday" style="margin:0;font-size:13px">All-day event</label>
-  </div>
-  ${event?.all_day?`<div class="form-group">
-    <label>Date</label>
-    <input class="form-input" id="ev-date" type="date" value="${esc((event?.start_datetime||'').slice(0,10))}">
-  </div>`:''}
   <div class="form-group">
     <label>Location</label>
     <input class="form-input" id="ev-loc" type="text" value="${esc(event?.location||'')}" placeholder="Optional">
   </div>
   <div class="form-group">
     <label>Description</label>
-    <textarea class="form-textarea" id="ev-desc" placeholder="Optional">${esc(event?.description||'')}</textarea>
+    <textarea class="form-textarea" id="ev-desc" placeholder="Optional (type [[ for wiki-links)">${esc(event?.description||'')}</textarea>
   </div>
-  <div class="form-group">
-    <label>Contexts</label>
-    <div class="form-check-group" id="ev-ctx-group">${ctxCheckboxes(selectedCtx)}</div>
-  </div>
+  <div id="ev-links-panel">${buildModalLinksPanel(event?.description)}</div>
   ${event?.rrule ? `<div class="form-hint">⟳ Recurring: ${esc(event.rrule)}</div>` : ''}`;
 
   function buildDTString(dateVal, minsVal) {
@@ -2492,6 +2737,14 @@ function openEventModal(event = null) {
   ];
 
   openModal(isEdit ? 'Event details' : 'New event', body, buttons);
+
+  // Wiki-link autocomplete + live links panel
+  const evDescTA = document.getElementById('ev-desc');
+  if (evDescTA) evDescTA.addEventListener('input', () => {
+    handleWikiAutocomplete(evDescTA);
+    const lp = document.getElementById('ev-links-panel');
+    if (lp) lp.innerHTML = buildModalLinksPanel(evDescTA.value);
+  });
 
   // Sync end-date min whenever start-date changes
   const sd = document.getElementById('ev-start-date');
@@ -2564,12 +2817,182 @@ function askEditMode() {
    NOTE CREATION (in-tab, not modal)
 ═══════════════════════════════════════════════════════════════════════════ */
 function startNewNote() {
-  S.noteId = null;
+  const tempId = 'new-' + Date.now();
+  S.noteTabs.push({ id: tempId, title: 'New note', _isNew: true });
+  S.noteActiveTab = tempId;
+  refreshTabBar();
   document.querySelectorAll('.note-item').forEach(el => el.classList.remove('active'));
   const panel = document.getElementById('notes-content');
   if (!panel) return;
   panel.innerHTML = buildNotePanel({ id: null, title: '', content: '', contexts: [], tags: [] }, true);
-  bindNotePanel(null, true);
+  bindNotePanel(null, true, tempId);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTEXTS MANAGEMENT MODAL
+═══════════════════════════════════════════════════════════════════════════ */
+const _COLOR_NAMES = [
+  'slate','gray','zinc','neutral','stone',
+  'red','orange','amber','yellow','lime',
+  'green','emerald','teal','cyan','sky',
+  'blue','indigo','violet','purple','fuchsia','pink','rose',
+];
+
+function _colorSelectHTML(id, current) {
+  const isHex = current?.startsWith('#');
+  // Visual swatches — no color name text
+  const swatches = _COLOR_NAMES.map(n => {
+    const hex = CTX_COLORS[n];
+    const active = !isHex && current === n;
+    return `<span class="color-swatch${active?' active':''}" data-sid="${id}" data-color="${n}"
+      style="background:${hex}" title="${n}"></span>`;
+  }).join('');
+  const hexActive = isHex ? ' active' : '';
+  return `
+    <div class="color-swatches" id="${id}">
+      ${swatches}
+      <span class="color-swatch hex-swatch${hexActive}" data-sid="${id}" data-color="__hex__"
+        style="${isHex?`background:${esc(current)}`:'background:var(--bg-2);border-style:dashed'}"
+        title="Custom hex">✏</span>
+    </div>
+    <input type="text" class="form-input ctx-hex" id="${id}-h"
+      value="${isHex?esc(current):''}" placeholder="#rrggbb"
+      style="width:72px;font-size:12px;margin-top:4px;display:${isHex?'block':'none'}">`;
+}
+
+async function openContextsModal() {
+  let ctxs;
+  try { ctxs = await api.get('/api/contexts/'); }
+  catch(e) { toast('Could not load contexts: ' + e.message, 'error'); return; }
+
+  const rows = ctxs.map(c => {
+    const cid = esc(c.id);
+    const isTaskDflt = c.default_for === 'tasks';
+    const isNoteDflt = c.default_for === 'notes';
+    return `
+    <div class="ctx-mgmt-row" data-ctx-id="${cid}"
+         style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--bd-1);flex-wrap:wrap">
+      <span class="ctx-dot" id="dot-${cid}" style="background:${esc(ctxColor(c.color))};flex-shrink:0"></span>
+      <input type="text" class="form-input ctx-name-inp" value="${esc(c.name)}"
+        ${c.is_system?'disabled title="System context — rename disabled"':''}
+        style="flex:1;min-width:80px;font-size:13px;padding:3px 6px">
+      ${_colorSelectHTML(`ccs-${cid}`, c.color)}
+      <button class="btn btn-sm btn-secondary" data-ca="save" data-cid="${cid}" title="Save" style="padding:2px 7px">✓</button>
+      ${c.is_system
+        ? `<span style="font-size:11px;color:var(--tx-3);min-width:18px">sys</span>`
+        : `<button class="btn btn-sm btn-danger" data-ca="del" data-cid="${cid}" title="Delete" style="padding:2px 7px">✕</button>`
+      }
+      <div style="display:flex;gap:4px;font-size:11px;flex-basis:100%;padding-left:26px;margin-top:2px">
+        <button class="btn btn-sm ${isTaskDflt?'btn-primary':'btn-secondary'}" data-ca="set-dflt-tasks" data-cid="${cid}"
+          style="padding:1px 6px;font-size:11px" title="Default for new tasks & events">
+          ${isTaskDflt?'★ Default for tasks':'☆ Tasks default'}
+        </button>
+        <button class="btn btn-sm ${isNoteDflt?'btn-primary':'btn-secondary'}" data-ca="set-dflt-notes" data-cid="${cid}"
+          style="padding:1px 6px;font-size:11px" title="Default for new notes & journal">
+          ${isNoteDflt?'★ Default for notes':'☆ Notes default'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const addRow = `
+  <div style="display:flex;gap:6px;align-items:center;margin-top:12px;flex-wrap:wrap">
+    <input type="text" class="form-input" id="ctx-new-name" placeholder="New context name" style="flex:1;min-width:120px;font-size:13px">
+    ${_colorSelectHTML('ccs-new', 'slate')}
+    <button class="btn btn-primary btn-sm" id="ctx-add-btn">+ Add</button>
+  </div>`;
+
+  openModal('Manage Contexts', `<div id="ctx-rows">${rows}</div>${addRow}`, [
+    { label: 'Done', cls: 'btn-primary', fn: async () => {
+      await loadContexts();
+      renderCtxBar();
+      closeModal();
+      navigate(S.view);
+    }}
+  ]);
+
+  // Swatch click: select color, highlight active swatch
+  document.querySelectorAll('.color-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const sid = sw.dataset.sid;
+      const color = sw.dataset.color;
+      const hexInput = document.getElementById(sid + '-h');
+      // Deactivate all in this group
+      document.querySelectorAll(`.color-swatch[data-sid="${sid}"]`).forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      if (color === '__hex__') {
+        if (hexInput) { hexInput.style.display = 'block'; hexInput.focus(); }
+      } else {
+        if (hexInput) hexInput.style.display = 'none';
+      }
+    });
+  });
+
+  // Save button
+  document.querySelectorAll('[data-ca="save"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const cid  = btn.dataset.cid;
+      const row  = btn.closest('.ctx-mgmt-row');
+      const name = row?.querySelector('.ctx-name-inp')?.value?.trim();
+      const activeSw = document.querySelector(`#ccs-${cid} .color-swatch.active`);
+      const hexI     = document.getElementById(`ccs-${cid}-h`);
+      let color      = activeSw?.dataset?.color || 'slate';
+      if (color === '__hex__') {
+        color = hexI?.value?.trim() || '';
+        if (!/^#[0-9A-Fa-f]{6}$/.test(color)) { toast('Hex must be #rrggbb', 'error'); return; }
+      }
+      if (!name) { toast('Name cannot be empty', 'error'); return; }
+      try {
+        await api.patch(`/api/contexts/${cid}`, { name, color });
+        const dot = document.getElementById(`dot-${cid}`);
+        if (dot) dot.style.background = ctxColor(color);
+        toast('Saved ✓', 'success');
+      } catch(e) { toast(e.message, 'error'); }
+    });
+  });
+
+  // Delete button
+  document.querySelectorAll('[data-ca="del"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const cid = btn.dataset.cid;
+      const row = btn.closest('.ctx-mgmt-row');
+      const name = row?.querySelector('.ctx-name-inp')?.value || cid;
+      if (!confirm(`Delete context "${name}"?\nObjects only in this context will move to Inbox / Uncategorized.`)) return;
+      try {
+        await api.del(`/api/contexts/${cid}`);
+        toast('Deleted ✓', 'success');
+        openContextsModal();  // refresh
+      } catch(e) { toast(e.message, 'error'); }
+    });
+  });
+
+  // Add new context
+  document.getElementById('ctx-add-btn')?.addEventListener('click', async () => {
+    const name     = document.getElementById('ctx-new-name')?.value?.trim();
+    const activeSw = document.querySelector('#ccs-new .color-swatch.active');
+    const hexI     = document.getElementById('ccs-new-h');
+    let color      = activeSw?.dataset?.color || 'slate';
+    if (color === '__hex__') color = hexI?.value?.trim() || 'slate';
+    if (!name) { toast('Name required', 'error'); return; }
+    try {
+      await api.post('/api/contexts/', { name, color });
+      toast('Context added ✓', 'success');
+      openContextsModal();
+    } catch(e) { toast(e.message, 'error'); }
+  });
+
+  // Set-default buttons
+  document.querySelectorAll('[data-ca="set-dflt-tasks"],[data-ca="set-dflt-notes"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const cid     = btn.dataset.cid;
+      const forType = btn.dataset.ca === 'set-dflt-tasks' ? 'tasks' : 'notes';
+      try {
+        await api.post(`/api/contexts/${cid}/set-default?for_type=${forType}`, {});
+        toast('Default updated ✓', 'success');
+        openContextsModal();
+      } catch(e) { toast(e.message, 'error'); }
+    });
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2638,6 +3061,17 @@ document.getElementById('view').addEventListener('click', async e => {
 
     case 'select-note': loadNote(id); break;
 
+    case 'switch-tab': {
+      if (id && id !== S.noteActiveTab) loadNote(id);
+      break;
+    }
+
+    case 'close-tab': {
+      e.stopPropagation();
+      closeNoteTab(id);
+      break;
+    }
+
     case 'delete-note': {
       e.stopPropagation();
       if (!confirm('Delete this note?')) return;
@@ -2653,23 +3087,38 @@ document.getElementById('view').addEventListener('click', async e => {
     case 'new-note': startNewNote(); break;
 
     case 'open-link': {
-      const linkTitle = el.dataset.title || '';
-      // Try to find a note with this title and open it
-      api.get('/api/links/autocomplete', { q: linkTitle }).then(results => {
-        if (!results?.length) { toast(`No object found: ${linkTitle}`, 'error'); return; }
-        const exact = results.find(r => r.title.toLowerCase() === linkTitle.toLowerCase()) || results[0];
+      const rawTitle = el.dataset.title || '';
+      // Strip optional type: prefix for resolution (matches backend sync_links logic)
+      const typedM = rawTitle.match(/^(task|event|note|journal):(.+)$/i);
+      const lookupTitle = typedM ? typedM[2] : rawTitle;
+      const hintType    = typedM ? typedM[1].toLowerCase() : null;
+
+      api.get('/api/links/autocomplete', { q: lookupTitle }).then(results => {
+        if (!results?.length) { toast(`No object found: "${rawTitle}"`, 'error'); return; }
+        const exact = results.find(r => r.title.toLowerCase() === lookupTitle.toLowerCase())
+          || (hintType ? results.find(r => r.type === hintType) : null)
+          || results[0];
         if (exact.type === 'note') {
           navigate('notes');
           setTimeout(() => loadNote(exact.id), 300);
         } else if (exact.type === 'task') {
           navigate('tasks');
+          setTimeout(async () => {
+            try { const t = await api.get(`/api/tasks/${exact.id}`); openTaskModal(t); } catch {}
+          }, 300);
         } else if (exact.type === 'journal') {
           navigate('journal');
           setTimeout(() => loadJournalEntry(exact.id.slice(0,10), []), 300);
         } else if (exact.type === 'event') {
           api.get(`/api/events/${exact.id}`).then(ev => openEventModal(ev)).catch(() => {});
         }
-      }).catch(() => toast(`Could not resolve link: ${linkTitle}`, 'error'));
+      }).catch(() => toast(`Could not resolve link: "${rawTitle}"`, 'error'));
+      break;
+    }
+
+    case 'goto-today': {
+      S.date = new Date();
+      renderDay();
       break;
     }
 
@@ -2753,6 +3202,12 @@ async function init() {
 
   // Load contexts
   await loadContexts();
+
+  // Manage contexts sidebar link
+  document.getElementById('manage-contexts-btn')?.addEventListener('click', e => {
+    e.preventDefault();
+    openContextsModal();
+  });
 
   // Bind quick capture
   bindCapture();
