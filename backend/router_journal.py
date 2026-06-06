@@ -260,7 +260,9 @@ async def update_journal(
 ):
     row      = await _fetch_row(journal_id, db)
     old_path = Path(row["filepath"])
-    _, old_content = md.parse(old_path.read_text(encoding="utf-8") if old_path.exists() else "")
+    # Save original file bytes for restoration if the DB update fails.
+    old_file_text = old_path.read_text(encoding="utf-8") if old_path.exists() else ""
+    _, old_content = md.parse(old_file_text) if old_file_text else ({}, "")
 
     new_content = payload.content if payload.content is not None else old_content
     new_title   = payload.title   if payload.title   is not None else (row["title"] or None)
@@ -289,23 +291,43 @@ async def update_journal(
     new_meta   = _make_meta(journal_id, row["entry_date"], new_title, tag_names, ctx_names)
     obj_title  = f"Journal {entry_date}" + (f" \u2014 {new_title}" if new_title else "")
 
-    if new_path != old_path:
-        ignore(old_path, new_path)
-        md.write(new_path, new_meta, new_content)
-        old_path.unlink(missing_ok=True)
-        await db.execute("UPDATE journal_entries SET filepath=? WHERE id=?",
-                         (str(new_path), journal_id))
-    else:
-        ignore(old_path)
-        md.write(old_path, new_meta, new_content)
+    file_written  = False
+    file_replaced = False
+    try:
+        if new_path != old_path:
+            ignore(old_path, new_path)
+            md.write(new_path, new_meta, new_content)
+            file_written = True
+            old_path.unlink(missing_ok=True)
+            file_replaced = True
+            await db.execute("UPDATE journal_entries SET filepath=? WHERE id=?",
+                             (str(new_path), journal_id))
+        else:
+            ignore(old_path)
+            md.write(old_path, new_meta, new_content)
+            file_written = True
 
-    old_obj_title = row["title"]
-    if obj_title != old_obj_title:
-        await propagate_rename(journal_id, old_obj_title, obj_title, db)
-    await db.execute("UPDATE objects SET title=?, updated_at=? WHERE id=?",
-                     (obj_title, now_iso, journal_id))
-    await sync_links(journal_id, new_content, db)
-    await db.commit()
+        old_obj_title = row["title"]
+        if obj_title != old_obj_title:
+            await propagate_rename(journal_id, old_obj_title, obj_title, db)
+        await db.execute("UPDATE objects SET title=?, updated_at=? WHERE id=?",
+                         (obj_title, now_iso, journal_id))
+        await sync_links(journal_id, new_content, db)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        if file_written and old_file_text:
+            try:
+                if file_replaced:
+                    ignore(old_path, new_path)
+                    old_path.write_text(old_file_text, encoding="utf-8")
+                    new_path.unlink(missing_ok=True)
+                else:
+                    ignore(old_path)
+                    old_path.write_text(old_file_text, encoding="utf-8")
+            except Exception:
+                pass
+        raise
 
     row = await _fetch_row(journal_id, db)
     return _build(row, new_content,

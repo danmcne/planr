@@ -56,3 +56,4 @@ class ContextResponse(BaseModel):
     color:            str
     is_system:        bool
     subcontext_count: int = 0
+    default_for:      Optional[str] = None   # 'tasks' | 'notes' | None

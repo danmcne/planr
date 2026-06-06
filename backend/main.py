@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="Planr API", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="Planr API", version="0.6.2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,7 +57,7 @@ app.include_router(router_search.router,   prefix="/api")
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "0.5.0"}
+    return {"status": "ok", "version": "0.6.2"}
 
 
 # ── Serve frontend static files ───────────────────────────────────────────────

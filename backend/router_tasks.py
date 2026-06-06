@@ -217,18 +217,27 @@ async def list_tasks(
         "created_at": "o.created_at DESC",
         "title":      "o.title ASC",
     }
-    order = sql_order.get(sort_by, "o.created_at DESC")
-    params.append(limit)
 
-    cur = await db.execute(
-        f"{_SEL} WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ?", params
-    )
+    if sort_by == "priority":
+        # Fetch ALL matching tasks before scoring — applying LIMIT first means
+        # high-priority older tasks get silently dropped from results.
+        cur = await db.execute(
+            f"{_SEL} WHERE {' AND '.join(where)} ORDER BY o.created_at DESC", params
+        )
+    else:
+        order = sql_order.get(sort_by, "o.created_at DESC")
+        params.append(limit)
+        cur = await db.execute(
+            f"{_SEL} WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ?", params
+        )
+
     rows = await cur.fetchall()
     w = await _weights(db)
     tasks = [await _enrich(r, db, w) for r in rows]
 
     if sort_by == "priority":
         tasks.sort(key=lambda t: t.priority_score or 0.0, reverse=True)
+        tasks = tasks[:limit]
 
     return tasks
 

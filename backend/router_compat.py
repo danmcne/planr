@@ -204,7 +204,10 @@ async def tasks_today(
             "o.id IN (SELECT object_id FROM object_contexts WHERE context_id = ?)"
         )
         params.append(context_id)
-    params.append(limit)
+    # Fetch up to 500 matching tasks, score all, sort, then slice.
+    # This avoids the "priority sort after SQL LIMIT" problem where the LIMIT
+    # cuts off high-priority older tasks before scores are computed.
+    params.append(500)
 
     cur = await db.execute(
         f"{_TASK_SEL} WHERE {' AND '.join(where)} ORDER BY o.created_at DESC LIMIT ?",
@@ -214,7 +217,7 @@ async def tasks_today(
     weights = await _priority_weights(db)
     tasks = [await _enrich_task(r, db, weights) for r in rows]
     tasks.sort(key=lambda t: t.priority_score or 0.0, reverse=True)
-    return tasks
+    return tasks[:limit]
 
 
 # ─── /api/journal/today ──────────────────────────────────────────────────────

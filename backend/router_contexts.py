@@ -33,6 +33,7 @@ async def _enrich(row: aiosqlite.Row, db: aiosqlite.Connection) -> ContextRespon
         color=row["color"],
         is_system=bool(row["is_system"]),
         subcontext_count=cnt,
+        default_for=row["default_for"] if "default_for" in row.keys() else None,
     )
 
 
@@ -101,6 +102,30 @@ async def update_context(
     return await _enrich(await cur.fetchone(), db)
 
 
+@router.post("/{context_id}/set-default", response_model=ContextResponse)
+async def set_default_context(
+    context_id: str,
+    db: aiosqlite.Connection = Depends(get_db),
+    for_type: str = "tasks",   # query param: 'tasks' or 'notes'
+):
+    """Make this context the default for new tasks (or notes/journal).
+    Clears any previous default for that type first.
+    """
+    if for_type not in ("tasks", "notes"):
+        raise HTTPException(422, detail="for_type must be 'tasks' or 'notes'")
+    await _get_or_404(context_id, db)
+    # Clear existing default for this type
+    await db.execute(
+        "UPDATE contexts SET default_for = NULL WHERE default_for = ?", (for_type,)
+    )
+    await db.execute(
+        "UPDATE contexts SET default_for = ? WHERE id = ?", (for_type, context_id)
+    )
+    await db.commit()
+    cur = await db.execute("SELECT * FROM contexts WHERE id = ?", (context_id,))
+    return await _enrich(await cur.fetchone(), db)
+
+
 @router.delete("/{context_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_context(context_id: str, db: aiosqlite.Connection = Depends(get_db)):
     row = await _get_or_404(context_id, db)
@@ -122,10 +147,15 @@ async def delete_context(context_id: str, db: aiosqlite.Connection = Depends(get
     )
     orphans = await cur.fetchall()
     for obj in orphans:
-        fallback = (
-            "ctx-uncategorized"
-            if obj["type"] in ("note", "journal")
-            else "ctx-inbox"
+        # Use configured default context for the type, fall back to system defaults
+        is_note_type = obj["type"] in ("note", "journal")
+        cur2 = await db.execute(
+            "SELECT id FROM contexts WHERE default_for = ?",
+            ("notes" if is_note_type else "tasks",),
+        )
+        dflt_row = await cur2.fetchone()
+        fallback = dflt_row["id"] if dflt_row else (
+            "ctx-uncategorized" if is_note_type else "ctx-inbox"
         )
         await db.execute(
             "INSERT OR IGNORE INTO object_contexts (object_id, context_id) VALUES (?, ?)",

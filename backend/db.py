@@ -18,6 +18,8 @@ async def init_db() -> None:
         for stmt in [
             "ALTER TABLE events   ADD COLUMN exceptions TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE contexts ADD COLUMN color TEXT NOT NULL DEFAULT 'slate'",
+            # default_for: NULL | 'tasks' | 'notes'  (one context can serve as default per type)
+            "ALTER TABLE contexts ADD COLUMN default_for TEXT DEFAULT NULL",
         ]:
             try:
                 await db.execute(stmt)
@@ -34,6 +36,13 @@ async def init_db() -> None:
                 "UPDATE contexts SET color=? WHERE id=? AND (color IS NULL OR color='#888888')",
                 (colour, ctx_id),
             )
+        # Seed default_for on first run (idempotent — only sets if not already set)
+        await db.execute(
+            "UPDATE contexts SET default_for='tasks' WHERE id='ctx-inbox' AND default_for IS NULL"
+        )
+        await db.execute(
+            "UPDATE contexts SET default_for='notes' WHERE id='ctx-uncategorized' AND default_for IS NULL"
+        )
         # Someday is a task status, not a context — remove if present
         await db.execute("DELETE FROM contexts WHERE id='ctx-someday'")
         await db.commit()

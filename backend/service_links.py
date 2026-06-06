@@ -35,6 +35,23 @@ _URL_RE = re.compile(
     r'https?://[^\s\)\]\'"<>]+'
 )
 
+# Typed link prefix: [[task:Title]], [[event:Title]], [[note:Title]], [[journal:Title]]
+# web: and file: are external — not object titles.
+_TYPED_PREFIX_RE = re.compile(r'^(task|event|note|journal):(.+)$', re.IGNORECASE)
+
+
+def _resolve_link_title(raw: str):
+    """Strip optional type:title prefix for internal link resolution.
+
+    Returns the bare title to search in the objects table, or None when the
+    prefix marks an external reference (web:, file:) that should not be
+    stored as an internal link.
+    """
+    if raw.lower().startswith(('web:', 'file:')):
+        return None
+    m = _TYPED_PREFIX_RE.match(raw)
+    return m.group(2) if m else raw
+
 
 # ── public API ────────────────────────────────────────────────────────────────
 
@@ -45,6 +62,9 @@ async def sync_links(source_id: str, content: str, db: aiosqlite.Connection) -> 
     Strategy: delete all existing internal links from this source,
     then re-insert resolved ones.  This keeps the table accurate
     without needing a UNIQUE constraint on (source_id, target_id).
+
+    Typed links ([[task:X]], [[note:X]] …) have their prefix stripped before
+    the title lookup so they resolve to the correct object.
     """
     titles = set(_extract_links(content))   # deduplicated
 
@@ -53,8 +73,11 @@ async def sync_links(source_id: str, content: str, db: aiosqlite.Connection) -> 
         (source_id,)
     )
 
-    for title in titles:
-        cur = await db.execute("SELECT id FROM objects WHERE title = ?", (title,))
+    for raw_title in titles:
+        lookup_title = _resolve_link_title(raw_title)
+        if lookup_title is None:
+            continue  # web: / file: — handled as external below
+        cur = await db.execute("SELECT id FROM objects WHERE title = ?", (lookup_title,))
         row = await cur.fetchone()
         if row:
             await db.execute(
@@ -149,13 +172,17 @@ async def title_completions(
 async def get_dangling(source_id: str, content: str, db: aiosqlite.Connection) -> List[str]:
     """
     Return [[titles]] that appear in content but don't resolve to any object.
-    Used by the panel endpoint.
+    Used by the panel endpoint.  Typed prefixes (task:, event:, …) are stripped
+    before the lookup, matching the same logic as sync_links.
     """
     dangling = []
-    for title in set(_extract_links(content)):
-        cur = await db.execute("SELECT id FROM objects WHERE title = ?", (title,))
+    for raw_title in set(_extract_links(content)):
+        lookup_title = _resolve_link_title(raw_title)
+        if lookup_title is None:
+            continue  # external reference, skip
+        cur = await db.execute("SELECT id FROM objects WHERE title = ?", (lookup_title,))
         if not await cur.fetchone():
-            dangling.append(title)
+            dangling.append(raw_title)
     return sorted(dangling)
 
 

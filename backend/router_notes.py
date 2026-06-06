@@ -241,7 +241,9 @@ async def update_note(
 ):
     row      = await _fetch_row(note_id, db)
     old_path = Path(row["filepath"])
-    _, old_content = md.parse(old_path.read_text(encoding="utf-8") if old_path.exists() else "")
+    # Save the original file text so we can restore it if the DB update fails.
+    old_file_text = old_path.read_text(encoding="utf-8") if old_path.exists() else ""
+    _, old_content = md.parse(old_file_text) if old_file_text else ({}, "")
 
     new_title   = payload.title   if payload.title   is not None else row["title"]
     new_content = payload.content if payload.content is not None else old_content
@@ -276,22 +278,45 @@ async def update_note(
 
     new_meta = _meta(note_id, new_title, row["created_at"], tag_names, ctx_names)
 
-    if new_path != old_path:
-        ignore(old_path, new_path)
-        md.write(new_path, new_meta, new_content)
-        old_path.unlink(missing_ok=True)
-        await db.execute("UPDATE notes SET filepath=? WHERE id=?",
-                         (str(new_path), note_id))
-    else:
-        ignore(old_path)
-        md.write(old_path, new_meta, new_content)
+    # Write file and update DB inside a single try/except so that a DB failure
+    # after the file has been written can attempt to restore the original bytes.
+    file_written  = False
+    file_replaced = False
+    try:
+        if new_path != old_path:
+            ignore(old_path, new_path)
+            md.write(new_path, new_meta, new_content)
+            file_written = True
+            old_path.unlink(missing_ok=True)
+            file_replaced = True
+            await db.execute("UPDATE notes SET filepath=? WHERE id=?",
+                             (str(new_path), note_id))
+        else:
+            ignore(old_path)
+            md.write(old_path, new_meta, new_content)
+            file_written = True
 
-    if new_title != row["title"]:
-        await propagate_rename(note_id, row["title"], new_title, db)
-    await db.execute("UPDATE objects SET title=?, updated_at=? WHERE id=?",
-                     (new_title, now_iso, note_id))
-    await sync_links(note_id, new_content, db)
-    await db.commit()
+        if new_title != row["title"]:
+            await propagate_rename(note_id, row["title"], new_title, db)
+        await db.execute("UPDATE objects SET title=?, updated_at=? WHERE id=?",
+                         (new_title, now_iso, note_id))
+        await sync_links(note_id, new_content, db)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        # Best-effort: put the original file back so the filesystem stays consistent.
+        if file_written and old_file_text:
+            try:
+                if file_replaced:
+                    ignore(old_path, new_path)
+                    old_path.write_text(old_file_text, encoding="utf-8")
+                    new_path.unlink(missing_ok=True)
+                else:
+                    ignore(old_path)
+                    old_path.write_text(old_file_text, encoding="utf-8")
+            except Exception:
+                pass  # Filesystem restore failed — log in production
+        raise
 
     row      = await _fetch_row(note_id, db)
     contexts = await _contexts_of(note_id, db)
