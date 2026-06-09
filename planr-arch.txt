@@ -1,0 +1,135 @@
+Plan for "planr" web app which combines a calendar, todo, journal and notes, with linking between them. 
+
+
+Normailized data tables:
+
+Objects table columns:
+
+index number, object type (task, event, journal, note), uuid, title
+
+
+Events table columns:
+
+index number, title, uuid, parent uuid, root uuid (uuid of original ancestor), category/context(s), start datetime (YYYY-MM-DDTHH:mm:ss±hh:mm), end datetime, all_day (boolean), recurrence, location, description, tags, forward links, back links, create datetime, modified datetime 
+
+
+Tasks table columns:
+
+index number, title, uuid, parent uuid, root uuid, category/context(s), status, importance, user_urgency, computed_urgency, priority (computed), expected effort/time, due/scheduled datetime (YYYY-MM-DDTHH:mm:ss±hh:mm), recurrence, recurrence type (fixed or moveable), location, description, tags, forward links, back links, create datetime, modified datetime
+
+
+Journal table columns:
+
+index number, title (if exists), uuid, create datetime, path/filename (<YYYY-MM-DD>-<optional title>-<short-uuid>.md), category/context(s), tags, forward links, back links, modified datetime  
+
+
+Notes table columns:
+
+index number, title, uuid, create datetime, path/filename (<title>-<YYYY-MM-DD>-<short-uuid>.md), category/context(s), tags, forward links, back links, modified datetime  
+
+(Note "short-uuid" always refers to the first few/several characters of the uuid for the object.)
+
+Categories/context table columns:
+
+index number, category/context name, parent category/context, root category/context, depth, color
+
+We should allow a denormalized export of all objects, even as a csv, if the user requests.
+
+
+Explanations:
+
+
+Note, datetimes are converted to the user's local timezone (taken from system settings, overridable via app settings) before display. Dates are, for now, always shown in the format YYYY-MM-DD and times as HH:MM (24 hour time).
+
+uuids are globally unique.
+
+Titles are unique, within object type, up to root id. For example: task:Meet Bob and event:Meet Bob, both with title "Meet Bob" are fine as they are different object types. (When linking, see below, outside the object type the user must use [[type:Title]].)
+
+Within an object type, "root" titles (where uuid=root uuid) are unique. Child events/tasks (for example a modified occurrance) have the same title -- they appear the same to the user.
+
+Default root categories/contexts are Inbox, Personal, Work and Uncategorized. Default category for tasks and events is Inbox. Default category for journal and notes is Uncategorized. Contexts can be edited (rename, delete, add, color assoc.), but there must always be at least one root category/context.
+
+Subcontexts are like this: context.subcontext.subsubcontext, e.g. work.project.docs. (In the "Quick capture" for a task, the user can write "Give docs to John @work.project.docs".)
+
+recurrence: every N days, every N weeks, every N months (same date), every N months (Mth weekday), every N years. Default N=1. N from 1 to 999. Careful of every N months (same date) ... not all months have days 29,30,31 (use .ics standard here, but warn user). With Mth weekday, restrict M from 1 to 4.
+
+Recurrence type (for tasks): Fixed (e.g. rent, subscriptions), should be done at the fixed, specified time, regardless of when the task is actually completed. Moveable (e.g. clean, water plants), next occurrence is computed from the completion time of the previous.
+
+Tasks and events are database native. We export to an iCal/.ics automatically on the creation of a new task or event. We have two exported calendars, one for events, and one for tasks. iCal may not support all elements of our events and tasks, we'll make our best effort. E.g. child events may simply be their own event in iCal and moveable recurring tasks may be made fixed. We allow import of iCal calendars on request. Events (or tasks, if iCal supports them) with the same name may require input from the user: are they children of the same root event or not? If so, then we create a root event with that title and these as child events. If not, then the user needs to rename the events (or we can do so automatically using the date/time).
+
+On the other hand, journal and notes are filesystem native. This allows the user to simply move files into the appropriate folders in order to import them. Files imported like this may need to be renamed, however.
+
+Journal files will, by default, live in ~/journal/. File names will be of the form `YYYY-MM-DD-<optional title>-<short uuid>.md`, where YYYY-MM-DD is the date of creation. If the user drops a file (markdown or txt) in this folder, we will *copy* it to a file with a title like the above. If it begins with a date, we will keep the date. If not, we will add the current date to the title. We will also add a short uuid (from the uuid used in the database) and substitute the .txt filetype with .md, if necessary.
+
+Note, the database will need to keep a list of known files in the journal and notes directories in order to notice new files. 
+
+Note, whenever I mention "short uuid" I mean the first few/several characters in the uuid used in the database. Long uuids are fine in the database, to remain perfectly unique. Long uuids in filenames are a pain for the user if they ever need to interact with the filesystem directly.
+
+Note files will, by default, live in ~/notes/. File names for notes will be of the form `<title>-YYYY-MM-DD-<short uuid>.md`, where YYYY-MM-DD is the date of creation.
+
+Of course, titles of journal entries and notes may be changed by the user, requiring the service to alter the filenames.
+
+Tags, and especially links, are an integral part of the system and what separates it from using separate calendar/todo/journal/notes apps. Every object can be linked to other objects, e.g. tasks related to events, or notes related to tasks, or simply notes to other notes (ala zettelkasten/Obsidian). We will also allow links outside the database, to files and websites.
+
+Note that, for the user point of view, tags and links are simply written into the content/description of the object (task, event, journal, note).
+
+Tags, or hashtags, will be of the form "#tag" or "#another_tag" or "#'yet another tag'" (the users should avoid spaces when possible, but they should be allowed within quotes). We will keep track of tags, most used tags, recently used tags, "top tags" (most used and recently used). This will require it's own table. On viewing an object, the user will be able to see tags used within the object. These will be clickable (not necessarily within the object, but on a right side bar or bottom bar) and lead to a sortable "feed" of objects which have those tags.
+
+Links will be "wiki style" within the objects themselves, i.e. in the text of the journal or note or task/event description. Within a particular "namespace" they can simply be of the form `[[Title]]`, i.e. in linking to one note from another note. In linking to objects of different types, we should use `[[type:Title]]`, e.g. in linking from a note to an event, we can use `[[event:Title]]`. This allows linking externally as well, using, for example `[[file:Title<path/to/file>]]` or `[[web:Title<web address>]]`. Note that object titles can change, so that though the user types [[Title]], the link, internally, is actually to the uuid. This means that when a title for an object changes, we need to automatically look up any backlinks and change the text for those links to the new title. (Obviously we don't do this for external files or websites.)
+
+We also require autocomplete for both tags and links. When the user types "#" we already begin suggesting tags. When the user types "[[" we should begin suggesting titles ... and not only within the current "namespace"/object type, but all object. Notice that I also said "titles" ... we should be able to autocomplete to journals as well, using their titles, if they have one, not just the date. That said, if the user begins with numbers, e.g. "[[20...", we should also search datetime fields.
+
+
+Regarding status for tasks, they may be Inbox (overloaded with category, probably okay, but maybe we can suggest something else for either of these), Active (in progress, includes any subtasks done), Done, Deferred (user should have choices here: N days, N weeks, N months, Someday), Someday
+
+Regarding importance, the displayed importances should be human readable (1-5 can be difficult to interpret), though numerical values will be used internally. Examples: Someday (overloaded with status Someday, suggestions?), Low, Normal, High, Critical.
+
+
+Our task priority system uses urgency, importance, effort and "staleness" to order tasks. The precise number for priority doesn't matter so long as it generally makes sense. Our hope here is to provide the user, daily, with a limited number of tasks, perhaps up to 7 (user configurable), to minimize mental workload and resistance. We imagine the user to be capable, but with mild ADHD -- they may get overwhelmed if presented with too many tasks, or with prioritizing tasks, or they may forget task deadlines or recurring tasks (especially if infrequent or moveable).
+
+We may require a few other columns in the tasks table to compute "staleness". Urgency can be computed from the deadline, along with the user provided urgency, if given.
+
+We should consider the user estimate of effort to be very imprecise ... the task may very well require 2, 3 or 5 times more time than the estimate. (For now we don't worry about trying to track how accurate the user is.)
+
+One possibility for our calculation of priority:
+
+Normalize dimensions
+Each factor maps to [0, 1]:
+
+* urgency → time decay curve (exponential preferred)
+* importance → ordinal mapping
+* effort → inverse utility curve
+* staleness → log decay
+
+Combine these with (adjustable?) weights.
+
+
+Recurring events/tasks (fixed ones, at least) should be precomputed for perhaps 5 or 10 years in advance so that they can be easily displayed.
+
+
+That is most of the backend. Now the frontend. This should run as a service that we can access via browser, e.g. localhost:8000. The poweruser should be able to access more complete/raw information at, for example, localhost:8000/docs.
+
+We want the frontend to look good, but to be built with the simplest tools we can. In theory we would also want this to be usable on a text-based browser like links/lynx. This also means that we need to allow keyboard navigation.
+
+The typical user will have access to a few different pages: calendar, tasks (displays tasks subject to various filtering/sorting), journal, notes, tags, event (to edit an event), task (to edit a task), contexts (to edit: add, delete, rename, change color, etc for contexts).
+
+
+The calendar page will have the typical views: daily schedule (with the addition of the highest priority tasks ... basically a split view of the daily schedule and the chosen tasks), perhaps four day view (also with scheduled tasks), weekly view (with scheduled/deadlineed tasks), monthly view (with scheduled/dealined tasks). We should be able to click arrows to see the previous/next day/week/month and have a special button to go directly to "today"/"this week"/"this month". In the calendar view we should have various elements: add task/event button(s) (opens the page to create/edit an event or task). We want a "quick capture" text entry box (as mentioned before), where we can enter a task like "Give docs to Bob @work.project" and the task with title "Give docs to Bob" is inserted with the category/context work.project. (Note that contexts should not be case sensitive.)
+
+Clicking on (selecting) a task or event should open the page to view/edit the event or task details (including tags and links).
+
+Clicking on (selecting, recall we also want keyboard navigation) a particular day will bring us to the daily view for that day.
+
+In daily, four day if made, and weekly views, events should occupy the appropriate time-slots.
+
+
+The tasks page should have essentially a "feed" of tasks ... these can be sorted and filtered according to their various properties.
+
+
+The journal page should allow editing the current day's journal (it should provide the user with a basic prompt to get going). There should be a panel to choose other journal entries to read as well.
+
+The notes page should share the same format as the journal page, with the exception that notes must have a title.
+
+
+
+
