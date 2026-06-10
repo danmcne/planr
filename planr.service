@@ -1,0 +1,17 @@
+[Unit]
+Description=planr — personal information manager
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__PLANR_DIR__
+ExecStart=__VENV_DIR__/bin/uvicorn main:app --host 127.0.0.1 --port 7000 --reload
+Restart=on-failure
+RestartSec=3
+
+Environment=PLANR_DB=%h/.planr/planr.db
+Environment=PLANR_NOTES_DIR=%h/.planr/notes
+Environment=PLANR_JOURNAL_DIR=%h/.planr/journal
+
+[Install]
+WantedBy=default.target
