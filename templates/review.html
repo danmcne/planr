@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Review — planr{% endblock %}
+
+{% block content %}
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- Step tabs -->
+  <div class="review-steps" id="review-steps">
+    <div class="review-step active" data-step="0">① Inbox</div>
+    <div class="review-step"       data-step="1">② Stalled</div>
+    <div class="review-step"       data-step="2">③ Someday</div>
+    <div class="review-step"       data-step="3">④ Upcoming</div>
+    <div class="review-step"       data-step="4">⑤ Done</div>
+  </div>
+
+  <div class="review-content" id="review-content"></div>
+
+  <div style="padding:10px 18px;border-top:1px solid var(--b1);display:flex;gap:8px;flex-shrink:0;">
+    <button class="btn btn-secondary" id="btn-prev-step">← Back</button>
+    <span style="flex:1"></span>
+    <span id="step-counter" style="font-size:11px;color:var(--t3);align-self:center;"></span>
+    <button class="btn btn-primary"   id="btn-next-step">Next →</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/review.js"></script>
+{% endblock %}

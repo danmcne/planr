@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Month — planr{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <div class="date-nav">
+    <button class="btn-nav" id="btn-prev" aria-label="Previous month">‹</button>
+    <span class="date-nav-title" id="month-label"></span>
+    <button class="btn-nav" id="btn-next" aria-label="Next month">›</button>
+    <button class="btn-today" id="btn-today">This month</button>
+  </div>
+</div>
+
+<div class="month-outer">
+  <div class="month-dow-row">
+    <div class="month-dow">Mon</div><div class="month-dow">Tue</div>
+    <div class="month-dow">Wed</div><div class="month-dow">Thu</div>
+    <div class="month-dow">Fri</div><div class="month-dow">Sat</div>
+    <div class="month-dow">Sun</div>
+  </div>
+  <div class="month-body" id="month-body"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/month.js"></script>
+{% endblock %}

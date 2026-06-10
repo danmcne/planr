@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Week — planr{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <div class="date-nav">
+    <button class="btn-nav" id="btn-prev" aria-label="Previous week">‹</button>
+    <span class="date-nav-title" id="week-label"></span>
+    <button class="btn-nav" id="btn-next" aria-label="Next week">›</button>
+    <button class="btn-today" id="btn-today">This week</button>
+  </div>
+  <span class="toolbar-spacer"></span>
+  <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Event</button>
+</div>
+
+<div class="week-outer">
+  <!-- Header row (day labels) -->
+  <div class="week-header-row" id="week-header">
+    <div class="week-header-col"></div><!-- time gutter spacer -->
+  </div>
+
+  <!-- All-day / multi-day lane row -->
+  <div class="week-allday-row">
+    <div class="week-allday-gutter"></div>
+    <div class="week-allday-lanes" id="week-allday-lanes"></div>
+  </div>
+
+  <!-- Scrollable body -->
+  <div class="week-body" id="week-body">
+    <div class="week-time-col" id="week-time-col"></div>
+    <!-- 7 day columns added by JS -->
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/week.js"></script>
+{% endblock %}

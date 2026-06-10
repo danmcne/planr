@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Tasks — planr{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <div class="chips" id="status-chips">
+    <span class="chip on" data-status="">Active</span>
+    <span class="chip" data-status="inbox">Inbox</span>
+    <span class="chip" data-status="someday">Someday</span>
+    <span class="chip" data-status="deferred">Deferred</span>
+    <span class="chip" data-status="done">Done</span>
+  </div>
+  <span class="toolbar-spacer"></span>
+  <select id="ctx-filter" style="font-size:11px;padding:3px 7px;min-width:120px;">
+    <option value="">All contexts</option>
+  </select>
+  <select id="effort-filter" style="font-size:11px;padding:3px 7px;">
+    <option value="">Any effort</option>
+    <option value="low">Low</option>
+    <option value="medium">Medium</option>
+    <option value="high">High</option>
+  </select>
+  <select id="sort-select" style="font-size:11px;padding:3px 7px;">
+    <option value="priority">Priority</option>
+    <option value="due">Due date</option>
+    <option value="importance">Importance</option>
+    <option value="created">Created</option>
+    <option value="title">Title</option>
+  </select>
+  <button class="btn btn-primary btn-sm" id="btn-new">+ Task</button>
+</div>
+
+<div class="task-list" id="task-list" style="flex:1;overflow-y:auto;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/tasks.js"></script>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Search — planr{% endblock %}
+
+{% block content %}
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+
+  <div class="search-box">
+    <input id="search-inp" type="search" placeholder="Search everything… titles, notes, descriptions" autofocus>
+  </div>
+
+  <div class="toolbar" style="gap:6px;flex-wrap:wrap;">
+    <div class="chips" id="type-chips">
+      <span class="chip on" data-type="">All</span>
+      <span class="chip" data-type="task">Tasks</span>
+      <span class="chip" data-type="event">Events</span>
+      <span class="chip" data-type="note">Notes</span>
+      <span class="chip" data-type="journal">Journal</span>
+    </div>
+    <span class="toolbar-spacer"></span>
+    <select id="ctx-filter" style="font-size:11px;padding:3px 7px;min-width:110px;">
+      <option value="">Any context</option>
+    </select>
+    <select id="status-filter" style="font-size:11px;padding:3px 7px;">
+      <option value="">Any status</option>
+      <option value="inbox">Inbox</option>
+      <option value="active">Active</option>
+      <option value="done">Done</option>
+      <option value="deferred">Deferred</option>
+      <option value="someday">Someday</option>
+    </select>
+    <input id="date-from" type="date" style="font-size:11px;padding:3px 6px;" title="From date">
+    <input id="date-to"   type="date" style="font-size:11px;padding:3px 6px;" title="To date">
+    <span id="result-count" style="font-size:11px;color:var(--t3);"></span>
+  </div>
+
+  <div class="search-results" id="results"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/search.js"></script>
+{% endblock %}

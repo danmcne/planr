@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Journal — planr{% endblock %}
+
+{% block content %}
+<div class="with-sidebar" style="flex:1;overflow:hidden;">
+
+  <!-- Sidebar: entry list -->
+  <div class="sidebar">
+    <div class="sidebar-hd">
+      <span class="sidebar-title">Journal</span>
+      <button class="btn btn-primary btn-sm" id="btn-new">+ New</button>
+    </div>
+    <div class="sidebar-list" id="entry-list"></div>
+  </div>
+
+  <!-- Editor -->
+  <div class="editor" id="editor-panel">
+    <div class="editor-hd" id="editor-hd">
+      <input class="editor-title-inp" id="editor-title" placeholder="Entry title (optional)">
+      <div class="editor-meta-row">
+        <div class="editor-meta-item">
+          <span id="editor-date" style="font-family:var(--ff-mono);font-size:12px;color:var(--t3);"></span>
+        </div>
+        <div class="editor-meta-item">
+          <span class="autosave-badge" id="save-badge"></span>
+        </div>
+      </div>
+    </div>
+    <div class="editor-body">
+      <textarea class="editor-ta" id="editor-ta"
+        placeholder="Write today's entry… link with [[note:Title]], tag with #topic"></textarea>
+    </div>
+    <div class="links-panel" id="links-panel"></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/js/journal.js"></script>
+{% endblock %}
