@@ -5,7 +5,7 @@ import {
   api, fmtDate, esc, debounce,
   toast, initNav, initCapture,
   openTaskModal, openEventModal,
-} from '/static/js/shared.js';
+} from '/static/js/shared.js?v=6';
 
 let typeFilter = '', ctxFilter = '', statusFilter = '';
 

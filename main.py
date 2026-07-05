@@ -1,5 +1,5 @@
 """
-main.py — planr v1.2.1
+main.py — planr v1.8.1
 """
 import re
 import uuid as _uuid
@@ -16,15 +16,25 @@ from db import db, init_db
 from db_utils import sync_fts
 from models import QuickCapture, OpenPath
 from priority import compute_priority_score
-from routers import tasks, events, notes, journal, contexts, links, search, calendar
+from routers import tasks, events, notes, journal, contexts, links, search, calendar, transfer
 
 app = FastAPI(title="planr", docs_url="/api/docs")
 BASE_DIR  = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+class NoCacheStaticFiles(StaticFiles):
+    """Static files revalidate on every load (ETag 304s keep it cheap) —
+    a forgotten ?v= bump can no longer strand browsers on stale modules."""
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
+app.mount("/static", NoCacheStaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 for router in (tasks.router, events.router, notes.router, journal.router,
-               contexts.router, links.router, search.router, calendar.router):
+               contexts.router, links.router, search.router, calendar.router,
+               transfer.router):
     app.include_router(router)
 
 @app.on_event("startup")

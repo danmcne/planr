@@ -22,23 +22,35 @@ from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException
 
 from db import db
+from recurrence import expand_all
 
 router = APIRouter(prefix="/api/calendar", tags=["calendar"])
 
 # Events overlapping [range_end_param, range_start_param] (inclusive dates).
 _OVERLAP_SQL = """
-    SELECT e.*, c.full_path AS context_path, c.color AS context_color
-    FROM events e LEFT JOIN contexts c ON e.context_id = c.id
+    SELECT e.*, c.full_path AS context_path, c.color AS context_color,
+           rc.color AS root_color
+    FROM events e
+    LEFT JOIN contexts c ON e.context_id = c.id
+    LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
     WHERE e.start_at IS NOT NULL
-      AND date(e.start_at) <= ?
-      AND date(COALESCE(e.end_at, e.start_at)) >= ?
+      AND ( (date(e.start_at) <= ? AND date(COALESCE(e.end_at, e.start_at)) >= ?)
+            OR (e.recurrence <> '' AND date(e.start_at) <= ?) )
     ORDER BY e.all_day DESC, e.start_at ASC
 """
 
 _TASKS_SQL = """
-    SELECT uuid, title, due_at, importance, status, priority_score
-    FROM tasks
-    WHERE due_at IS NOT NULL AND date(due_at) BETWEEN ? AND ?
+    SELECT t.uuid, t.title, t.due_at, t.importance, t.status, t.priority_score,
+           c.full_path AS context_path, c.color AS context_color,
+           rc.color AS root_color
+    FROM tasks t
+    LEFT JOIN contexts c ON t.context_id = c.id
+    LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
+    WHERE t.due_at IS NOT NULL AND date(t.due_at) BETWEEN ? AND ?
       AND status NOT IN ('done', 'someday')
     ORDER BY priority_score DESC
 """
@@ -137,11 +149,11 @@ def _timed_payload(row, seg) -> dict:
 def day_data(date_str: str):
     day = _parse_date(date_str, "date_str")
     with db() as conn:
-        rows = conn.execute(_OVERLAP_SQL, (date_str, date_str)).fetchall()
+        rows = conn.execute(_OVERLAP_SQL, (date_str, date_str, date_str)).fetchall()
         tasks = conn.execute(_TASKS_SQL, (date_str, date_str)).fetchall()
 
     all_day, timed = [], []
-    for r in rows:
+    for r in expand_all(rows, day, day):
         for seg in segment_event(r):
             if seg["kind"] == "span":
                 if seg["span_start"] <= day <= seg["span_end"]:
@@ -162,14 +174,14 @@ def week_data(start_date: str):
     end_str = end.isoformat()
 
     with db() as conn:
-        event_rows = conn.execute(_OVERLAP_SQL, (end_str, start_date)).fetchall()
+        event_rows = conn.execute(_OVERLAP_SQL, (end_str, start_date, end_str)).fetchall()
         task_rows = conn.execute(_TASKS_SQL, (start_date, end_str)).fetchall()
 
     days = [(start + timedelta(days=i)).isoformat() for i in range(7)]
     timed_by_day = {d: [] for d in days}
     spanning = []
 
-    for r in event_rows:
+    for r in expand_all(event_rows, start, end):
         for seg in segment_event(r):
             if seg["kind"] == "span":
                 if seg["span_start"] <= end and seg["span_end"] >= start:
@@ -200,17 +212,19 @@ def month_data(year: int, month: int):
     start_str, end_str = first.isoformat(), last.isoformat()
 
     with db() as conn:
-        event_rows = conn.execute(_OVERLAP_SQL, (end_str, start_str)).fetchall()
+        event_rows = conn.execute(_OVERLAP_SQL, (end_str, start_str, end_str)).fetchall()
         task_rows = conn.execute(
-            """SELECT uuid, title, due_at, importance, status
-               FROM tasks
-               WHERE due_at IS NOT NULL AND date(due_at) BETWEEN ? AND ?
-                 AND status NOT IN ('done', 'someday')""",
+            """SELECT t.uuid, t.title, t.due_at, t.importance, t.status,
+                      c.full_path AS context_path
+               FROM tasks t
+               LEFT JOIN contexts c ON t.context_id = c.id
+               WHERE t.due_at IS NOT NULL AND date(t.due_at) BETWEEN ? AND ?
+                 AND t.status NOT IN ('done', 'someday')""",
             (start_str, end_str),
         ).fetchall()
 
     events_by_day: dict = {}
-    for r in event_rows:
+    for r in expand_all(event_rows, first, last):
         s, e = _effective_dates(r)
         multiday = bool(r["all_day"]) or s != e
         cur, fin = max(s, first), min(e, last)

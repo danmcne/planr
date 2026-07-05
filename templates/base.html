@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=6">
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -19,6 +19,8 @@
       <input id="quick-capture" type="text" autocomplete="off" spellcheck="false"
              placeholder="Quick capture… +context !importance ~effort ^due #tag  › prefix with > for event">
     </div>
+    <div class="root-filter" id="root-filter" title="Filter all views by root context"></div>
+    <button class="btn-icon" id="btn-transfer" title="Import / Export">⇅</button>
     <span class="topbar-clock" id="topbar-clock"></span>
   </header>
 
@@ -65,7 +67,7 @@
 <!-- Wiki-link autocomplete dropdown -->
 <div id="ac-drop" class="ac-drop hidden"></div>
 
-<script type="module" src="/static/js/shared.js"></script>
+<script type="module" src="/static/js/shared.js?v=6"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

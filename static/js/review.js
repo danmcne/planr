@@ -5,7 +5,7 @@ import {
   api, todayStr, addDays, fmtDate, esc,
   toast, initNav, initCapture,
   openTaskModal, openEventModal, renderTaskItem,
-} from '/static/js/shared.js';
+} from '/static/js/shared.js?v=6';
 
 const STEPS = [
   { id: 'inbox',    label: '① Inbox',    sub: 'Process every inbox item: assign a context, set status, or delete.' },

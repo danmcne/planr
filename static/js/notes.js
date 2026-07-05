@@ -8,8 +8,8 @@
  */
 import {
   api, esc, toast,
-  initNav, initCapture, initWikiAC, debounce, renderLinksPanel,
-} from '/static/js/shared.js';
+  initNav, initCapture, initWikiAC, debounce, renderLinksPanel, initRootFilter, filterByRoot,
+} from '/static/js/shared.js?v=6';
 
 const UNSAFE_RE = /[/\\:*?"<>|]/g;
 const LS_KEY    = 'planr.notes.tabs';
@@ -25,6 +25,7 @@ let saving = false;
 document.addEventListener('DOMContentLoaded', async () => {
   initNav();
   initCapture(() => {});
+  initRootFilter(() => renderList(allNotes));
 
   const ta    = document.getElementById('editor-ta');
   const title = document.getElementById('editor-title');
@@ -90,6 +91,7 @@ async function loadList() {
 }
 
 function renderList(notes) {
+  notes = filterByRoot(notes);
   const list = document.getElementById('note-list');
   list.innerHTML = '';
   if (!notes.length) {

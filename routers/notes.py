@@ -23,8 +23,13 @@ def list_notes(context_id: Optional[int] = None):
         rows = conn.execute(
             f"""SELECT n.uuid, n.title, n.context_id, n.created_at, n.modified_at,
                        substr(n.content,1,200) AS excerpt,
-                       c.full_path AS context_path, c.color AS context_color
-                FROM notes n LEFT JOIN contexts c ON n.context_id = c.id
+                       c.full_path AS context_path, c.color AS context_color,
+                       rc.color AS root_color
+                FROM notes n
+                LEFT JOIN contexts c ON n.context_id = c.id
+                LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
                 {where} ORDER BY n.modified_at DESC""",
             params,
         ).fetchall()

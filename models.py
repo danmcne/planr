@@ -61,6 +61,11 @@ class EventUpdate(BaseModel):
     all_day: Optional[bool] = None
     recurrence: Optional[str] = None
     location: Optional[str] = None
+    # Scoped edits on recurring series (not persisted as columns):
+    #   scope: 'all' | 'occurrence' | 'future' | 'this'
+    #   occurrence_at: the original start of the occurrence being edited
+    scope: Optional[str] = None
+    occurrence_at: Optional[str] = None
 
 
 # ── Notes ────────────────────────────────────────────────────────────────────

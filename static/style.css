@@ -785,3 +785,33 @@ a.wlink:hover { border-bottom-color: var(--ab); }
 .lp-chip.lp-ext { cursor: pointer; }
 a.xlink { color: var(--info); cursor: pointer; text-decoration: underline dotted; }
 a.xlink:hover { color: var(--ab); }
+
+/* ── root-context filter chips (top bar, v1.3.0) ────────────── */
+.root-filter {
+  display: flex; align-items: center; gap: 5px;
+  margin: 0 12px; flex-wrap: wrap;
+}
+.rf-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; font-size: 11px; color: var(--t2);
+  background: var(--s1); border: 1px solid var(--b1);
+  border-radius: 999px; cursor: pointer; user-select: none;
+  white-space: nowrap; transition: background .1s, color .1s;
+}
+.rf-chip:hover { background: var(--s2); color: var(--t1); }
+.rf-chip.on    { background: var(--s3); color: var(--t1); }
+.rf-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  opacity: .9;
+}
+
+/* recurrence weekday toggles (1.7.0) */
+.wd-toggle {
+  background: var(--s3); border-color: var(--b1); color: var(--t2);
+}
+.wd-toggle:hover { border-color: var(--t3); color: var(--t1); }
+.wd-toggle.on {
+  background: var(--a); border-color: var(--a); color: #000; font-weight: 600;
+}
+/* month-view event chips open the event (1.6.0) */
+.mc-ev { cursor: pointer; }

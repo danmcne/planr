@@ -9,6 +9,9 @@
     <button class="btn-nav" id="btn-next" aria-label="Next month">›</button>
     <button class="btn-today" id="btn-today">This month</button>
   </div>
+  <span class="toolbar-spacer"></span>
+  <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Event</button>
+  <button class="btn btn-primary   btn-sm" id="btn-add-task">+ Task</button>
 </div>
 
 <div class="month-outer">
@@ -23,5 +26,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script type="module" src="/static/js/month.js"></script>
+<script type="module" src="/static/js/month.js?v=6"></script>
 {% endblock %}

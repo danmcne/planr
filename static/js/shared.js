@@ -99,6 +99,78 @@ document.addEventListener('click', async e => {
   } catch (err) { toast(err.message, 'err'); }
 });
 
+// ── Root-context filter (top bar) ─────────────────────────────────────────────
+// Toggleable chips for each root context (work, personal, …). The selection
+// persists in localStorage and applies across all views. Empty selection =
+// show everything. While a filter is active, items without a context are
+// hidden (use the inbox/uncategorized chips to see unsorted items).
+
+const _RF_KEY = 'planr.rootFilter';
+let _rfSelected = new Set();
+try { _rfSelected = new Set(JSON.parse(localStorage.getItem(_RF_KEY) || '[]')); } catch {}
+
+export function rootFilterActive() { return _rfSelected.size > 0; }
+
+/** True if an item with this context_path passes the current filter. */
+export function rootFilterPass(contextPath) {
+  if (!_rfSelected.size) return true;
+  if (!contextPath) return false;
+  return _rfSelected.has(String(contextPath).split('.')[0]);
+}
+
+export function filterByRoot(items, pathKey = 'context_path') {
+  if (!_rfSelected.size) return items;
+  return (items || []).filter(it => rootFilterPass(it[pathKey]));
+}
+
+/** Render the chips into #root-filter; call onChange on every toggle. */
+export async function initRootFilter(onChange) {
+  const host = document.getElementById('root-filter');
+  if (!host) return;
+  let roots = [];
+  try {
+    const ctxs = await api.get('/contexts');
+    roots = ctxs.filter(c => !c.full_path.includes('.'));
+  } catch { return; }
+
+  // Drop selections for roots that no longer exist
+  const names = new Set(roots.map(r => r.full_path));
+  let changed = false;
+  for (const sel of [..._rfSelected])
+    if (!names.has(sel)) { _rfSelected.delete(sel); changed = true; }
+  if (changed) localStorage.setItem(_RF_KEY, JSON.stringify([..._rfSelected]));
+
+  const render = () => {
+    host.innerHTML = '';
+    const all = document.createElement('span');
+    all.className = `rf-chip${_rfSelected.size ? '' : ' on'}`;
+    all.textContent = 'All';
+    all.onclick = () => {
+      _rfSelected.clear();
+      localStorage.setItem(_RF_KEY, '[]');
+      render(); onChange?.();
+    };
+    host.appendChild(all);
+
+    for (const r of roots) {
+      const chip = document.createElement('span');
+      const on = _rfSelected.has(r.full_path);
+      chip.className = `rf-chip${on ? ' on' : ''}`;
+      const col = r.color || '#4B5563';
+      chip.innerHTML = `<span class="rf-dot" style="background:${col}"></span>${esc(r.full_path)}`;
+      if (on) chip.style.borderColor = col;
+      chip.onclick = () => {
+        if (_rfSelected.has(r.full_path)) _rfSelected.delete(r.full_path);
+        else _rfSelected.add(r.full_path);
+        localStorage.setItem(_RF_KEY, JSON.stringify([..._rfSelected]));
+        render(); onChange?.();
+      };
+      host.appendChild(chip);
+    }
+  };
+  render();
+}
+
 // ── Nav + clock ───────────────────────────────────────────────────────────────
 
 export function initNav() {
@@ -461,18 +533,103 @@ function _addHour(t) {
 }
 
 // ── Recurrence widget helpers (module-private) ────────────────────────────────
+//
+// Two storage formats:
+//   Tasks  (withType=true)  — legacy compact "unit:n:type"   (unchanged)
+//   Events (withType=false) — RFC 5545 RRULE text, e.g.
+//       FREQ=WEEKLY;INTERVAL=2 · FREQ=MONTHLY;BYDAY=2TU ·
+//       FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+//   Legacy "unit:n" values on old events are still parsed for prefill
+//   (and expanded by the backend), and are upgraded to RRULE on next save.
 
+const _WD      = ['SU','MO','TU','WE','TH','FR','SA'];
+const _WD_NAME = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const _ORD     = ['first','second','third','fourth','fifth'];
+const _FREQ2UNIT = {DAILY:'day', WEEKLY:'week', MONTHLY:'month', YEARLY:'year'};
+const _UNIT2FREQ = {day:'DAILY', week:'WEEKLY', month:'MONTHLY', year:'YEARLY'};
+
+// → {unit, n, type, on}   on ∈ 'md' (day-of-month) | 'nth' | 'last'
 function _parseRecur(str) {
-  if (!str) return {unit:'',n:1,type:'fixed'};
+  if (!str) return {unit:'', n:1, type:'fixed', on:'md', days:[]};
+  if (str.toUpperCase().includes('FREQ=')) {
+    const p = {};
+    str.replace(/^RRULE:/i,'').split(';').forEach(kv => {
+      const [k,v] = kv.split('='); if (k) p[k.trim().toUpperCase()] = (v||'').trim();
+    });
+    const unit = _FREQ2UNIT[(p.FREQ||'').toUpperCase()] || '';
+    const on   = p.BYDAY ? (p.BYDAY.startsWith('-') ? 'last' : 'nth') : 'md';
+    const days = (unit === 'week' && p.BYDAY) ? p.BYDAY.split(',') : [];
+    return {unit, n: parseInt(p.INTERVAL)||1, type:'fixed', on, days};
+  }
   const [u,n,t] = str.split(':');
-  return {unit:u||'',n:parseInt(n)||1,type:t||'fixed'};
+  return {unit:u||'', n:parseInt(n)||1, type:t||'fixed', on:'md', days:[]};
 }
 
+// Options for the month/year "On" select, phrased from the start date.
+// Nth-weekday is offered only for the 1st–4th (a "5th Tuesday" exists in
+// some months only); dates in the final week get "the last …" instead.
+// Day-of-month 29–31 (and yearly Feb 29) is offered but clamps: in months
+// lacking that day the occurrence falls on the month's last day.
+function _onOptions(unit, dateStr) {
+  const d   = dateStr ? new Date(dateStr+'T00:00:00') : new Date();
+  const dom = d.getDate(), wd = _WD_NAME[d.getDay()];
+  const nth = Math.ceil(dom/7);
+  const dim = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+  const mn  = d.toLocaleString('en-GB', {month:'long'});
+  const clamp = unit === 'year' ? (d.getMonth() === 1 && dom === 29) : dom >= 29;
+  const opts = [ unit === 'year'
+    ? ['md', `on ${mn} ${dom}${clamp ? ' *' : ''}`]
+    : ['md', `on day ${dom}${clamp ? ' *' : ''}`] ];
+  if (nth <= 4)
+    opts.push(['nth', unit === 'year'
+      ? `the ${_ORD[nth-1]} ${wd} of ${mn}` : `the ${_ORD[nth-1]} ${wd}`]);
+  if (dom > dim - 7)
+    opts.push(['last', unit === 'year' ? `the last ${wd} of ${mn}` : `the last ${wd}`]);
+  return opts;
+}
+
+// Warning shown when a clamped day-of-month rule is selected.
+function _clampHint(unit, dateStr, on) {
+  if (on !== 'md' || !dateStr) return '';
+  const d = new Date(dateStr+'T00:00:00'), dom = d.getDate();
+  if (unit === 'month' && dom >= 29)
+    return `Not every month has a day ${dom} — in shorter months this event`
+         + ` will fall on the last day of the month.`;
+  if (unit === 'year' && d.getMonth() === 1 && dom === 29)
+    return `February 29 exists only in leap years — otherwise this event`
+         + ` will fall on February 28.`;
+  return '';
+}
+
+function _refreshOn(pfx, unit, dateStr) {
+  const sel = document.getElementById(`${pfx}-on`);
+  const wrap = document.getElementById(`${pfx}-on-wrap`);
+  if (!sel || !wrap) return;
+  const monthly = unit === 'month' || unit === 'year';
+  wrap.style.display = monthly ? '' : 'none';
+  const hint = document.getElementById(`${pfx}-hint`);
+  if (!monthly) { if (hint) hint.style.display = 'none'; return; }
+  const cur = sel.value || sel.dataset.init || 'md';
+  const opts = _onOptions(unit, dateStr);
+  const keep = opts.some(([v]) => v === cur) ? cur : 'md';
+  sel.innerHTML = opts.map(([v,l]) =>
+    `<option value="${v}" ${v===keep?'selected':''}>${l}</option>`).join('');
+  if (hint) {
+    const msg = _clampHint(unit, dateStr, keep);
+    hint.textContent = msg ? '⚠ ' + msg : '';
+    hint.style.display = msg ? '' : 'none';
+  }
+}
+
+// Display order Monday-first; values are RFC weekday codes.
+const _WD_TOGGLES = [['MO','Mo'],['TU','Tu'],['WE','We'],['TH','Th'],
+                     ['FR','Fr'],['SA','Sa'],['SU','Su']];
+
 function _recurHTML(pfx, str, withType) {
-  const {unit,n,type} = _parseRecur(str);
+  const {unit,n,type,on,days} = _parseRecur(str);
   const UNITS = [['','Does not repeat'],['day','Daily'],['week','Weekly'],['month','Monthly'],['year','Yearly']];
   const uOpts = UNITS.map(([v,l]) => `<option value="${v}" ${v===unit?'selected':''}>${l}</option>`).join('');
-  return `<div class="fg-row" style="gap:10px;align-items:flex-end;">
+  return `<div class="fg-row" style="gap:10px;align-items:flex-end;flex-wrap:wrap;">
     <div class="fg" style="flex:1.4;">
       <label>Repeats</label>
       <select id="${pfx}-unit">${uOpts}</select>
@@ -490,30 +647,409 @@ function _recurHTML(pfx, str, withType) {
         <option value="fixed" ${type==='fixed'?'selected':''}>Fixed</option>
         <option value="moveable" ${type==='moveable'?'selected':''}>Moveable</option>
       </select>
-    </div>` : ''}
-  </div>`;
+    </div>` : `<div class="fg" id="${pfx}-on-wrap" style="flex:1.6;display:none">
+      <label>On</label>
+      <select id="${pfx}-on" data-init="${on}"></select>
+    </div>`}
+  </div>
+  ${withType ? '' : `<div class="fg" id="${pfx}-wd-wrap" style="${unit==='week'?'':'display:none;'}margin-top:-4px;">
+    <label>On days</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${_WD_TOGGLES.map(([v,l]) => `<button type="button" class="btn btn-sm wd-toggle${(days||[]).includes(v)?' on':''}"
+        data-wd="${v}" id="${pfx}-wd-${v}"
+        style="min-width:36px;padding:4px 0;">${l}</button>`).join('')}
+    </div>
+  </div>
+  <div id="${pfx}-hint" style="display:none;font-size:11.5px;color:var(--warn,#d9a441);margin:-4px 0 10px;line-height:1.45;"></div>`}`;
 }
 
-function _initRecur(pfx, withType) {
+// dateInputId (events only): the modal's start-date field — the "On" labels
+// are phrased from it and refresh when it changes.
+function _initRecur(pfx, withType, dateInputId) {
   const uEl = document.getElementById(`${pfx}-unit`);
   const nW  = document.getElementById(`${pfx}-n-wrap`);
   const tW  = withType ? document.getElementById(`${pfx}-type-wrap`) : null;
   const lbl = document.getElementById(`${pfx}-unit-lbl`);
-  const tog = () => {
+  const wdWrap = withType ? null : document.getElementById(`${pfx}-wd-wrap`);
+  const dayCode = () => {
+    const ds = _getDateInput(dateInputId);
+    return ds ? _WD[new Date(ds+'T00:00:00').getDay()] : null;
+  };
+  const upd = () => {
     const u = uEl.value;
     [nW,tW].forEach(el => el && (el.style.display = u?'':'none'));
     if (lbl) lbl.textContent = u ? u+'(s)' : '';
+    if (!withType) {
+      _refreshOn(pfx, u, _getDateInput(dateInputId));
+      if (wdWrap) {
+        wdWrap.style.display = u === 'week' ? '' : 'none';
+        if (u === 'week'
+            && !wdWrap.querySelector('.wd-toggle.on') && dayCode())
+          document.getElementById(`${pfx}-wd-${dayCode()}`)?.classList.add('on');
+      }
+    }
   };
-  uEl.onchange = tog;
+  if (wdWrap) wdWrap.querySelectorAll('.wd-toggle').forEach(b =>
+    b.onclick = () => b.classList.toggle('on'));
+  uEl.onchange = upd;
+  if (!withType) {
+    document.getElementById(dateInputId)
+      ?.addEventListener('change', () => _refreshOn(pfx, uEl.value, _getDateInput(dateInputId)));
+    document.getElementById(`${pfx}-on`)
+      ?.addEventListener('change', () => _refreshOn(pfx, uEl.value, _getDateInput(dateInputId)));
+    upd();  // populate "On" for prefilled rules
+  }
 }
 
-function _getRecur(pfx, withType) {
+function _getRecur(pfx, withType, dateInputId) {
   const u = document.getElementById(`${pfx}-unit`).value;
   if (!u) return '';
-  const n = document.getElementById(`${pfx}-n`).value || '1';
-  if (!withType) return `${u}:${n}`;
-  const t = document.getElementById(`${pfx}-type`)?.value || 'fixed';
-  return `${u}:${n}:${t}`;
+  const n = parseInt(document.getElementById(`${pfx}-n`).value) || 1;
+  if (withType) {
+    const t = document.getElementById(`${pfx}-type`)?.value || 'fixed';
+    return `${u}:${n}:${t}`;
+  }
+  let r = `FREQ=${_UNIT2FREQ[u]}`;
+  if (n > 1) r += `;INTERVAL=${n}`;
+  if (u === 'week') {
+    const days = [...document.querySelectorAll(`#${pfx}-wd-wrap .wd-toggle.on`)]
+      .map(b => b.dataset.wd);
+    const ds = _getDateInput(dateInputId);
+    const start = ds ? _WD[new Date(ds+'T00:00:00').getDay()] : null;
+    // Plain FREQ=WEEKLY when the selection is just the start date's weekday
+    // (canonical, matches pre-1.6 rules); explicit BYDAY otherwise.
+    if (days.length && !(days.length === 1 && days[0] === start))
+      r += `;BYDAY=${days.join(',')}`;
+  }
+  if (u === 'month' || u === 'year') {
+    const on = document.getElementById(`${pfx}-on`)?.value || 'md';
+    const ds = _getDateInput(dateInputId);
+    const d  = ds ? new Date(ds+'T00:00:00') : null;
+    if (d && on !== 'md') {
+      const wd = _WD[d.getDay()];
+      if (u === 'year') r += `;BYMONTH=${d.getMonth()+1}`;
+      r += `;BYDAY=${on === 'last' ? '-1' : Math.ceil(d.getDate()/7)}${wd}`;
+    } else if (d) {
+      const dom = d.getDate();
+      // Day 29–31 (and yearly Feb 29): "that day if it exists, else the
+      // last day of the month" — BYMONTHDAY=28..dom;BYSETPOS=-1 picks the
+      // latest existing candidate, which is exactly the clamp.
+      if (u === 'month' && dom >= 29) {
+        const days = []; for (let k = 28; k <= dom; k++) days.push(k);
+        r += `;BYMONTHDAY=${days.join(',')};BYSETPOS=-1`;
+      } else if (u === 'year' && d.getMonth() === 1 && dom === 29) {
+        r += `;BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1`;
+      }
+    }
+  }
+  return r;
+}
+
+// ── Recurrence in words ───────────────────────────────────────────────────────
+
+const _WD_FULL = {MO:'Monday',TU:'Tuesday',WE:'Wednesday',TH:'Thursday',
+                  FR:'Friday',SA:'Saturday',SU:'Sunday'};
+const _MONTHS = ['January','February','March','April','May','June','July',
+                 'August','September','October','November','December'];
+
+export function humanizeRecur(rule, startAt) {
+  if (!rule) return '';
+  const {unit, n, on} = _parseRecur(rule);
+  if (!unit) return '';
+  const d = startAt ? new Date(startAt) : null;
+  const every = n > 1 ? `every ${n} ${unit}s` : {day:'daily', week:'weekly',
+    month:'monthly', year:'yearly'}[unit];
+  let s = `Repeats ${every}`;
+  const p = {};
+  if (rule.toUpperCase().includes('FREQ='))
+    rule.split(';').forEach(kv => { const [k,v] = kv.split('=');
+      if (k) p[k.toUpperCase()] = v; });
+
+  if (unit === 'week') {
+    const days = p.BYDAY ? p.BYDAY.split(',').map(c => _WD_FULL[c] || c)
+               : (d ? [_WD_FULL[_WD[d.getDay()]]] : []);
+    if (days.length)
+      s += ' on ' + (days.length > 1
+        ? days.slice(0, -1).join(', ') + ' and ' + days[days.length - 1]
+        : days[0]);
+  } else if (unit === 'month' || unit === 'year') {
+    const mn = p.BYMONTH ? _MONTHS[+p.BYMONTH - 1]
+             : (d ? _MONTHS[d.getMonth()] : '');
+    if (p.BYDAY) {
+      const m = p.BYDAY.match(/^(-?\d)(\w\w)$/);
+      if (m) {
+        const which = m[1] === '-1' ? 'last' : _ORD[+m[1] - 1];
+        s += ` on the ${which} ${_WD_FULL[m[2]]}`;
+        if (unit === 'year' && mn) s += ` of ${mn}`;
+      }
+    } else if (p.BYSETPOS === '-1' && p.BYMONTHDAY) {
+      const dom = Math.max(...p.BYMONTHDAY.split(',').map(Number));
+      s += unit === 'year'
+        ? ` on ${mn} ${dom} (Feb 28 outside leap years)`
+        : ` on day ${dom} (or the last day of shorter months)`;
+    } else if (d) {
+      const dom = d.getDate();
+      s += unit === 'year' ? ` on ${mn} ${dom}` : ` on day ${dom}`;
+      if (unit === 'month' && dom >= 29)
+        s += ' (or the last day of shorter months)';
+    }
+  }
+  if (p.UNTIL) {
+    const u = p.UNTIL;
+    s += ` until ${u.slice(0,4)}-${u.slice(4,6)}-${u.slice(6,8)}`;
+  }
+  if (p.COUNT) s += `, ${p.COUNT} times`;
+  return s;
+}
+
+// ── Event view modal (read-only; Edit opens the editor) ───────────────────────
+
+export function openEventView(event = {}, onChanged) {
+  const dt = iso => iso ? iso.slice(0, 10) : '';
+  const tm = iso => iso ? iso.slice(11, 16) : '';
+  let when;
+  if (event.all_day) {
+    const s = dt(event.start_at), e = dt(event.end_at) || s;
+    when = s === e ? `${s} · all day` : `${s} → ${e} · all day`;
+  } else {
+    const s = event.start_at, e = event.end_at;
+    when = dt(s) === dt(e) || !e
+      ? `${dt(s)} · ${tm(s)}${e ? ' – ' + tm(e) : ''}`
+      : `${dt(s)} ${tm(s)} → ${dt(e)} ${tm(e)}`;
+  }
+  const rec = humanizeRecur(event.recurrence, event.start_at);
+  const row = (label, val) => val
+    ? `<div style="margin-bottom:10px;"><div style="font-size:10.5px;color:var(--t2);
+        text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">${label}</div>
+        <div style="font-size:13.5px;color:var(--t1);">${val}</div></div>` : '';
+
+  openModal(esc(event.title || 'Event'), `
+    ${row('When', esc(when))}
+    ${row('Repeats', rec ? '↻ ' + esc(rec) : '')}
+    ${row('Context', event.context_path
+        ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;
+            background:${event.context_color || '#6B7280'};margin-right:6px;"></span>`
+          + esc(event.context_path) : '')}
+    ${row('Location', event.location ? esc(event.location) : '')}
+    ${row('Description', event.description
+        ? `<div style="white-space:pre-wrap;">${esc(event.description)}</div>` : '')}
+    <div class="form-actions">
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary" id="v-close">Close</button>
+      <button class="btn btn-primary"   id="v-edit">Edit</button>
+    </div>
+  `);
+  document.getElementById('v-close').onclick = closeModal;
+  document.getElementById('v-edit').onclick = async () => {
+    let preset = null;
+    if (event.recurrence) {
+      preset = await chooseScope('Edit:', [
+        ['occurrence', 'Only this occurrence'],
+        ['future',     'This and all future occurrences'],
+        ['all',        'All occurrences'],
+      ]);
+      if (!preset) return;                       // stay on the view card
+    } else if (event.parent_uuid) {
+      preset = await chooseScope('Edit:', [
+        ['this', 'Only this event'],
+        ['all',  'All events in the series'],
+      ]);
+      if (!preset) return;
+    }
+    closeModal();
+    openEventModal(event, onChanged, onChanged, preset);
+  };
+}
+
+// ── Task view modal (read-only; Edit opens the editor) ────────────────────────
+
+export function openTaskView(t = {}, onChanged) {
+  const row = (label, val) => val
+    ? `<div style="margin-bottom:10px;"><div style="font-size:10.5px;color:var(--t2);
+        text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">${label}</div>
+        <div style="font-size:13.5px;color:var(--t1);">${val}</div></div>` : '';
+  const impDot = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;
+      background:${IMP_COLOR[t.importance] || IMP_COLOR.normal};margin-right:6px;"></span>`;
+  let rec = humanizeRecur(t.recurrence, t.due_at);
+  if (rec && (t.recurrence || '').split(':')[2] === 'moveable')
+    rec += ' (moveable — next due counts from completion)';
+  openModal(esc(t.title || 'Task'), `
+    ${row('Status', esc(t.status || 'inbox'))}
+    ${row('Importance / effort', impDot + esc(t.importance || 'normal')
+        + ' · ' + esc(t.effort || 'medium') + ' effort')}
+    ${row('Due', t.due_at ? esc(t.due_at.slice(0, 10)) : '')}
+    ${row('Repeats', rec ? '↻ ' + esc(rec) : '')}
+    ${row('Context', t.context_path
+        ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;
+            background:${t.context_color || '#6B7280'};margin-right:6px;"></span>`
+          + esc(t.context_path) : '')}
+    ${row('Description', t.description
+        ? `<div style="white-space:pre-wrap;">${esc(t.description)}</div>` : '')}
+    <div class="form-actions">
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary" id="v-close">Close</button>
+      <button class="btn btn-primary"   id="v-edit">Edit</button>
+    </div>
+  `);
+  document.getElementById('v-close').onclick = closeModal;
+  document.getElementById('v-edit').onclick = () => {
+    closeModal();
+    openTaskModal(t, onChanged, onChanged);
+  };
+}
+
+// ── Import / Export ───────────────────────────────────────────────────────────
+
+async function _ctxSelectHTML(id, withAll) {
+  const ctxs = await api.get('/contexts');
+  const head = withAll ? '<option value="">All contexts</option>'
+                       : '<option value="">— no context —</option>';
+  return `<select id="${id}">${head}${ctxs.map(c =>
+    `<option value="${c.id}">${esc(c.full_path)}</option>`).join('')}</select>`;
+}
+
+export async function openTransferModal() {
+  openModal('Import / Export', `
+    <div style="display:flex;gap:10px;margin:6px 0 4px;">
+      <button class="btn btn-secondary" id="tx-export" style="flex:1;padding:14px;">⤓&nbsp; Export</button>
+      <button class="btn btn-secondary" id="tx-import" style="flex:1;padding:14px;">⤒&nbsp; Import</button>
+    </div>`);
+  document.getElementById('tx-export').onclick = _transferExport;
+  document.getElementById('tx-import').onclick = _transferImport;
+}
+
+async function _transferExport() {
+  const ctxSel = await _ctxSelectHTML('tx-ctx', true);
+  openModal('Export', `
+    <div class="fg"><label>What</label>
+      <select id="tx-what">
+        <option value="both">Calendar — events + tasks (.ics)</option>
+        <option value="events">Calendar — events only (.ics)</option>
+        <option value="tasks">Calendar — tasks only (.ics)</option>
+        <option value="journal">Journal (.zip of Markdown)</option>
+        <option value="notes">Notes (.zip of Markdown)</option>
+      </select></div>
+    <div class="fg" id="tx-ctx-wrap"><label>Context</label>${ctxSel}</div>
+    <div class="form-actions">
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary" id="tx-back">Back</button>
+      <button class="btn btn-primary"   id="tx-go">Download</button>
+    </div>`);
+  const whatEl = document.getElementById('tx-what');
+  const tog = () => document.getElementById('tx-ctx-wrap').style.display =
+    ['journal','notes'].includes(whatEl.value) ? 'none' : '';
+  whatEl.onchange = tog; tog();
+  document.getElementById('tx-back').onclick = openTransferModal;
+  document.getElementById('tx-go').onclick = () => {
+    const what = whatEl.value;
+    let url;
+    if (what === 'journal' || what === 'notes') {
+      url = `/api/transfer/export/${what}.zip`;
+    } else {
+      const ctx = document.getElementById('tx-ctx').value;
+      url = `/api/transfer/export/calendar.ics?what=${what}`
+          + (ctx ? `&context_id=${ctx}` : '');
+    }
+    const a = document.createElement('a');
+    a.href = url; a.download = '';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Export started');
+  };
+}
+
+async function _transferImport() {
+  const ctxSel = await _ctxSelectHTML('tx-ctx', false);
+  openModal('Import', `
+    <div class="fg"><label>What</label>
+      <select id="tx-what">
+        <option value="ics">Calendar (.ics — events and tasks)</option>
+        <option value="journal">Journal (.zip of Markdown)</option>
+        <option value="notes">Notes (.zip of Markdown)</option>
+      </select></div>
+    <div id="tx-cal-opts">
+      <div class="fg"><label>Import into context</label>${ctxSel}</div>
+      <div class="fg" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="tx-cats" checked style="width:auto;">
+        <label for="tx-cats" style="text-transform:none;letter-spacing:0;margin:0;
+          font-size:12px;color:var(--t2);cursor:pointer;">
+          Match existing contexts from the file's CATEGORIES</label>
+      </div>
+    </div>
+    <div class="fg"><label>File</label><input type="file" id="tx-file"></div>
+    <div id="tx-result" style="font-size:12.5px;color:var(--t1);margin:6px 0;"></div>
+    <div class="form-actions">
+      <span style="flex:1"></span>
+      <button class="btn btn-secondary" id="tx-back">Back</button>
+      <button class="btn btn-primary"   id="tx-go">Import</button>
+    </div>`);
+  const whatEl = document.getElementById('tx-what');
+  const tog = () => document.getElementById('tx-cal-opts').style.display =
+    whatEl.value === 'ics' ? '' : 'none';
+  whatEl.onchange = tog; tog();
+  document.getElementById('tx-back').onclick = openTransferModal;
+  document.getElementById('tx-go').onclick = async () => {
+    const f = document.getElementById('tx-file').files[0];
+    if (!f) { toast('Choose a file first', 'err'); return; }
+    const what = whatEl.value;
+    const fd = new FormData();
+    fd.append('file', f);
+    let url = `/api/transfer/import/${what}`;
+    if (what === 'ics') {
+      const ctx = document.getElementById('tx-ctx').value;
+      if (ctx) fd.append('context_id', ctx);
+      fd.append('match_categories',
+                document.getElementById('tx-cats').checked ? 'true' : 'false');
+    }
+    const res = await fetch(url, { method: 'POST', body: fd });
+    const out = document.getElementById('tx-result');
+    if (!res.ok) { out.textContent = `Import failed (${res.status}).`; return; }
+    const r = await res.json();
+    out.textContent = what === 'ics'
+      ? `Imported ${r.imported_events} event(s) and ${r.imported_tasks} task(s); skipped ${r.skipped} duplicate(s).`
+      : `Imported ${r.imported}; skipped ${r.skipped} duplicate(s).`;
+    toast('Import finished');
+  };
+}
+
+document.getElementById('btn-transfer')
+  ?.addEventListener('click', openTransferModal);
+
+// ── Scope chooser (recurring-series edits/deletes) ────────────────────────────
+//
+// A lightweight overlay independent of the main modal, so it can stack on
+// top of the event editor. Resolves to the chosen value, or null on cancel.
+export function chooseScope(title, options) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);' +
+      'z-index:3000;display:flex;align-items:center;justify-content:center;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg-2,#16181c);border:1px solid ' +
+      'var(--bd,#2e3238);border-radius:10px;padding:18px 20px;min-width:320px;' +
+      'max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.5);';
+    const h = document.createElement('div');
+    h.textContent = title;
+    h.style.cssText = 'font-size:13px;color:var(--t1,#e8e8e8);margin-bottom:14px;';
+    box.appendChild(h);
+    const done = v => { ov.remove(); resolve(v); };
+    for (const [value, label] of options) {
+      const b = document.createElement('button');
+      b.className = 'btn btn-secondary';
+      b.textContent = label;
+      b.style.cssText = 'display:block;width:100%;margin-bottom:8px;text-align:left;';
+      b.onclick = () => done(value);
+      box.appendChild(b);
+    }
+    const c = document.createElement('button');
+    c.className = 'btn';
+    c.textContent = 'Cancel';
+    c.style.cssText = 'display:block;width:100%;margin-top:4px;opacity:.75;';
+    c.onclick = () => done(null);
+    box.appendChild(c);
+    ov.onclick = e => { if (e.target === ov) done(null); };
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+  });
 }
 
 // ── Context options ───────────────────────────────────────────────────────────
@@ -611,8 +1147,25 @@ export async function openTaskModal(task={}, onSaved, onDeleted) {
 
 // ── Event modal ───────────────────────────────────────────────────────────────
 
-export async function openEventModal(event={}, onSaved, onDeleted) {
+const _SCOPE_LABEL = {
+  occurrence: 'only this occurrence',
+  future:     'this and all future occurrences',
+  all:        'all occurrences',
+  this:       'only this event',
+};
+
+// scopePreset: when the caller already asked the user which part of a
+// recurring series to edit ('occurrence' | 'future' | 'all' | 'this'),
+// the editor shows it and applies it on save without asking again.
+// Without a preset, a recurring save falls back to asking at save time.
+export async function openEventModal(event={}, onSaved, onDeleted, scopePreset=null) {
   const isEdit  = !!event.uuid;
+  // Calendar views hand over occurrence rows with per-occurrence dates —
+  // the form prefills with them, and `occAt` (the occurrence's original
+  // start) anchors the scope chooser on save/delete.
+  const occAt      = event.start_at || null;
+  const isSeries   = !!(event.recurrence || event.parent_uuid);
+  if (!isSeries) scopePreset = null;
   const ctxOpts = await ctxOptions(event.context_id, true);
   const allDay  = !!event.all_day;
 
@@ -622,7 +1175,18 @@ export async function openEventModal(event={}, onSaved, onDeleted) {
   const defStartD = isEdit ? event.start_at  : (new Date().toLocaleDateString('en-CA'));
   const defEndD   = isEdit ? event.end_at    : defStartD;
 
-  openModal(isEdit ? 'Edit event' : 'New event', `
+  const titleSuffix = scopePreset && scopePreset !== 'this'
+    ? ` — ${_SCOPE_LABEL[scopePreset]}` : '';
+  const scopeNote = scopePreset ? `
+    <div style="font-size:11.5px;color:var(--t2);border:1px solid var(--b1);
+        border-radius:var(--r);padding:6px 10px;margin-bottom:12px;">
+      Editing <b style="color:var(--t1);">${_SCOPE_LABEL[scopePreset]}</b>${
+        scopePreset === 'occurrence' && occAt
+          ? ` (${esc(occAt.slice(0,10))}) — the series and its rule are unchanged`
+          : ''}.
+    </div>` : '';
+  openModal((isEdit ? 'Edit event' : 'New event') + titleSuffix, `
+    ${scopeNote}
     <div class="fg"><label>Title</label>
       <input id="f-title" value="${esc(event.title||'')}" autofocus></div>
 
@@ -654,7 +1218,9 @@ export async function openEventModal(event={}, onSaved, onDeleted) {
       <div class="fg"><label>Location</label>
         <input id="f-loc" value="${esc(event.location||'')}"></div>
     </div>
-    ${_recurHTML('f-recur', event.recurrence, false)}
+    <div id="f-recur-sect" style="${scopePreset === 'occurrence' ? 'display:none;' : ''}">
+      ${_recurHTML('f-recur', event.recurrence, false)}
+    </div>
     <div class="fg"><label>Description</label>
       <textarea id="f-desc" placeholder="[[Title]] to link · [[web:Title<https://…>]] · #tag">${esc(event.description||'')}</textarea></div>
     <div class="links-panel links-panel-modal" id="f-links"></div>
@@ -667,9 +1233,9 @@ export async function openEventModal(event={}, onSaved, onDeleted) {
   `);
 
   initWikiAC(document.getElementById('f-desc'));
-  _initRecur('f-recur', false);
   _initDateField('f-sd');
   _initDateField('f-ed');
+  _initRecur('f-recur', false, 'f-sd');
   _initModalLinks('f-desc', 'f-links', event.uuid);
 
   // All-day toggle
@@ -698,8 +1264,23 @@ export async function openEventModal(event={}, onSaved, onDeleted) {
   document.getElementById('f-cancel').onclick = closeModal;
   if (isEdit) {
     document.getElementById('f-del').onclick = async () => {
-      if (!confirm('Delete this event?')) return;
-      await api.delete(`/events/${event.uuid}`);
+      if (scopePreset && scopePreset !== 'this') {
+        if (!confirm(`Delete ${_SCOPE_LABEL[scopePreset]}?`)) return;
+        const qs = `scope=${scopePreset}&occurrence_at=${encodeURIComponent(occAt || '')}`;
+        await api.delete(`/events/${event.uuid}?${qs}`);
+      } else if (!scopePreset && event.recurrence) {
+        const scope = await chooseScope('Delete:', [
+          ['occurrence', 'Only this occurrence'],
+          ['future',     'This and all future occurrences'],
+          ['all',        'The entire series'],
+        ]);
+        if (!scope) return;
+        const qs = `scope=${scope}&occurrence_at=${encodeURIComponent(occAt || '')}`;
+        await api.delete(`/events/${event.uuid}?${qs}`);
+      } else {
+        if (!confirm('Delete this event?')) return;
+        await api.delete(`/events/${event.uuid}`);
+      }
       toast('Event deleted'); closeModal(); onDeleted?.();
     };
   }
@@ -723,9 +1304,23 @@ export async function openEventModal(event={}, onSaved, onDeleted) {
       title, all_day:isAD, start_at, end_at,
       context_id: +document.getElementById('f-ctx').value || 1,
       location:   document.getElementById('f-loc').value,
-      recurrence: _getRecur('f-recur', false),
+      recurrence: _getRecur('f-recur', false, 'f-sd'),
       description:document.getElementById('f-desc').value,
     };
+    if (isEdit && scopePreset) {
+      payload.scope = scopePreset;
+      payload.occurrence_at = occAt;
+    } else if (isEdit && isSeries) {
+      const scope = await chooseScope('Apply changes to:', event.recurrence
+        ? [['occurrence', 'Only this occurrence'],
+           ['future',     'This and all future occurrences'],
+           ['all',        'All occurrences']]
+        : [['this',       'Only this event'],
+           ['all',        'All events in the series']]);
+      if (!scope) return;                 // cancelled — form stays open
+      payload.scope = scope;
+      payload.occurrence_at = occAt;
+    }
     const saved = isEdit
       ? await api.put(`/events/${event.uuid}`, payload)
       : await api.post('/events', payload);
@@ -760,7 +1355,7 @@ export function renderTaskItem(t, onCheck, onOpen) {
   const dueLabel = t.due_at
     ? `<span class="badge ${isPast(t.due_at)&&!done?'badge-over':'badge-due'}">${isPast(t.due_at)&&!done?'⚠ ':''}${fmtDate(t.due_at)}</span>` : '';
   const ctxBadge = t.context_path
-    ? `<span class="badge badge-ctx">${t.context_path}</span>` : '';
+    ? `<span class="badge badge-ctx" style="border-left:3px solid ${t.root_color || t.context_color || 'var(--b1)'};${t.context_color ? `color:${t.context_color};` : ''}">${t.context_path}</span>` : '';
   const el = document.createElement('div');
   el.className = `t-item${done?' done':''}`;
   el.dataset.uuid = t.uuid;

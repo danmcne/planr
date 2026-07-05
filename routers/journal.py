@@ -23,10 +23,17 @@ def list_entries(year: Optional[int] = None, month: Optional[int] = None, limit:
             clauses.append("strftime('%m', entry_date) = ?"); params.append(f"{month:02d}")
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         rows = conn.execute(
-            f"""SELECT uuid, title, entry_date, created_at, modified_at,
-                       substr(content,1,200) AS excerpt
-                FROM journal_entries {where}
-                ORDER BY entry_date DESC LIMIT ?""",
+            f"""SELECT j.uuid, j.title, j.entry_date, j.created_at, j.modified_at,
+                       substr(j.content,1,200) AS excerpt,
+                       c.full_path AS context_path, c.color AS context_color,
+                       rc.color AS root_color
+                FROM journal_entries j
+                LEFT JOIN contexts c ON j.context_id = c.id
+                LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
+                {where}
+                ORDER BY j.entry_date DESC LIMIT ?""",
             params + [limit],
         ).fetchall()
         return [dict(r) for r in rows]

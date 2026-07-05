@@ -3,8 +3,8 @@
  */
 import {
   api, todayStr, fmtDate, esc,
-  toast, initNav, initCapture, initWikiAC, debounce, renderLinksPanel,
-} from '/static/js/shared.js';
+  toast, initNav, initCapture, initWikiAC, debounce, renderLinksPanel, initRootFilter, filterByRoot,
+} from '/static/js/shared.js?v=6';
 
 const UNSAFE_RE = /[/\\:*?"<>|]/g;
 let currentUUID = null, saving = false;
@@ -45,12 +45,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (full) { await openEntry(full); return; }
   }
 
+  initRootFilter(loadList);
+
   const today = await api.get('/journal/today');
   await openEntry(today);
 });
 
 async function loadList() {
-  const entries = await api.get('/journal');
+  const entries = filterByRoot(await api.get('/journal'));
   const list    = document.getElementById('entry-list');
   list.innerHTML = '';
   for (const e of entries) {

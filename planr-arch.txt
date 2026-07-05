@@ -15,7 +15,7 @@ index number, title, uuid, parent uuid, root uuid (uuid of original ancestor), c
 
 Tasks table columns:
 
-index number, title, uuid, parent uuid, root uuid, category/context(s), status, importance, user_urgency, computed_urgency, priority (computed), expected effort/time, due/scheduled datetime (YYYY-MM-DDTHH:mm:ss±hh:mm), recurrence, recurrence type (fixed or moveable), location, description, tags, forward links, back links, create datetime, modified datetime
+index number, title, uuid, parent uuid, root uuid, category/context(s), status, importance, user_urgency, computed_urgency, priority (computed), expected effort (user gives something like low, medium, high), due/scheduled datetime (YYYY-MM-DDTHH:mm:ss±hh:mm), recurrence, recurrence type (fixed or moveable), location, description, tags, forward links, back links, create datetime, modified datetime
 
 
 Journal table columns:
@@ -104,7 +104,7 @@ Each factor maps to [0, 1]:
 Combine these with (adjustable?) weights.
 
 
-Recurring events/tasks (fixed ones, at least) should be precomputed for perhaps 5 or 10 years in advance so that they can be easily displayed.
+Recurring events/tasks (fixed ones, at least) should be precomputed for perhaps 2 years in advance.
 
 
 That is most of the backend. Now the frontend. This should run as a service that we can access via browser, e.g. localhost:8000. The poweruser should be able to access more complete/raw information at, for example, localhost:8000/docs.

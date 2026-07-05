@@ -65,8 +65,12 @@ def list_tasks(
         }.get(sort, "t.priority_score DESC")
 
         rows = conn.execute(
-            f"""SELECT t.*, c.full_path AS context_path, c.color AS context_color
+            f"""SELECT t.*, c.full_path AS context_path, c.color AS context_color,
+                      rc.color AS root_color
                 FROM tasks t LEFT JOIN contexts c ON t.context_id = c.id
+               LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
                 {where} ORDER BY {order} LIMIT ? OFFSET ?""",
             params + [limit, offset],
         ).fetchall()
@@ -115,8 +119,12 @@ def tasks_for_day(
         )
         params += [date_str, date_str]
         rows = conn.execute(
-            f"""SELECT t.*, c.full_path AS context_path, c.color AS context_color
+            f"""SELECT t.*, c.full_path AS context_path, c.color AS context_color,
+                      rc.color AS root_color
                 FROM tasks t LEFT JOIN contexts c ON t.context_id = c.id
+               LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
                 WHERE {' AND '.join(clauses)}
                 ORDER BY t.priority_score DESC LIMIT ?""",
             params + [limit],
@@ -128,8 +136,12 @@ def tasks_for_day(
 def get_task(task_uuid: str):
     with db() as conn:
         row = conn.execute(
-            """SELECT t.*, c.full_path AS context_path, c.color AS context_color
+            """SELECT t.*, c.full_path AS context_path, c.color AS context_color,
+                      rc.color AS root_color
                FROM tasks t LEFT JOIN contexts c ON t.context_id = c.id
+               LEFT JOIN contexts rc ON rc.full_path = CASE
+        WHEN instr(c.full_path, '.') > 0 THEN substr(c.full_path, 1, instr(c.full_path, '.') - 1)
+        ELSE c.full_path END
                WHERE t.uuid = ?""",
             (task_uuid,),
         ).fetchone()

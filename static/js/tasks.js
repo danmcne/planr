@@ -3,8 +3,9 @@
  */
 import {
   api, initNav, initCapture,
-  openTaskModal, renderTaskItem, toast,
-} from '/static/js/shared.js';
+  openTaskModal, openTaskView, renderTaskItem, toast,
+  initRootFilter, filterByRoot,
+} from '/static/js/shared.js?v=6';
 
 let statusFilter = '';
 let effortFilter = '';
@@ -13,6 +14,7 @@ let sortOrder    = 'priority';
 
 document.addEventListener('DOMContentLoaded', async () => {
   initNav();
+  initRootFilter(load);
   initCapture(load);
 
   // Populate context select
@@ -49,7 +51,7 @@ async function load() {
   if (effortFilter) params.effort     = effortFilter;
   if (ctxFilter)    params.context_id = ctxFilter;
 
-  const tasks = await api.get('/tasks', params);
+  const tasks = filterByRoot(await api.get('/tasks', params));
   render(tasks);
 }
 
@@ -79,5 +81,5 @@ async function onCheck(t, el) {
 }
 
 function onOpen(t) {
-  openTaskModal(t, load, load);
+  openTaskView(t, load);
 }

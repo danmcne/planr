@@ -1,7 +1,7 @@
 /**
  * contexts.js — Contexts management view for planr
  */
-import { api, esc, toast, openModal, closeModal, initNav, initCapture } from '/static/js/shared.js';
+import { api, esc, toast, openModal, closeModal, initNav, initCapture } from '/static/js/shared.js?v=6';
 
 const PRESETS = [
   '#6B7280','#EF4444','#F97316','#EAB308',

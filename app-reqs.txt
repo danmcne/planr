@@ -1,3 +1,6 @@
+Below is a specification for a webapp that I want to build.
+
+---
 
 # 1. Core Model (Unified Object System)
 
@@ -84,7 +87,7 @@ Frontmatter:
 
 Rules:
 
-* title is part of filename (human readable directory browsing)
+* title is part of filename (human readable directory browsing) (clearly filenames should be cleaned of special characters)
 * uuid suffix guarantees uniqueness
 * if title changes → filename is renamed
 
@@ -93,7 +96,8 @@ Import rule:
 * any `.md` dropped into `/notes` is imported:
 
   * assigned uuid
-  * renamed to `<filename>-<date>-<short-uuid>.md`
+  * copied to `<filename>-<date>-<short-uuid>.md`
+  * frontmatter added
 
 This makes the directory usable without the app.
 
@@ -105,20 +109,14 @@ This makes the directory usable without the app.
 
 Internal links use:
 
-* `[[Title]]`
+* `[[type:Title-uuid]]`
 
-Note that typing "[[T..." should begin an autocompletion over the range of possible titles. Note that we should consider the "title" of a journal entry here, not the date.
+Note that typing "[[T..." should begin an autocompletion over the range of possible titles. Note that we should consider the "title" of a journal entry here, not just the date.
 
 ## 4.2 Critical constraint
 
-To support `[[Title]]` safely:
+Titles should be unique with each object type ... at least for "root" objects. (A child event resulting from modifying a repeating event may have the same title, but the user doesn't even explicitly "create" such an object ... they think of it as modifying the original.)
 
-* All titles must be globally unique across:
-
-  * tasks
-  * events
-  * notes
-  * journal entries (optional: usually excluded from linking target space.)
 
 ## 4.3 Identity resolution
 
@@ -128,8 +126,8 @@ To support `[[Title]]` safely:
 
 ## 4.4 External links
 
-* plain URLs
-* file references
+* plain URLs: [[web:Title-<web.address>]]
+* file references [[file:Title-</path/to/file>]]
 
 ## 4.5 UI representation
 
@@ -142,7 +140,7 @@ Links are shown in a side/bottom panel:
 
 # 5. Task System
 
-## 5.1 Core fields
+## 5.1 Core fields (see planr-arch.txt)
 
 * uuid
 * title
@@ -150,7 +148,7 @@ Links are shown in a side/bottom panel:
 * status (Inbox / Active / Done / Deferred / Someday)
 * importance (enum, not numeric in UI)
 * urgency (computed from deadline or provided)
-* time_estimate
+* effort_estimate (user gives rough estimate like low, medium, high)
 * due_date (optional)
 * recurrence_rule
 * contexts
@@ -230,8 +228,7 @@ Each factor maps to [0, 1]:
 
 Weights become:
 
-* user-configurable profile parameters (not sure this is a great idea)
-* not hardcoded constants
+* user-configurable profile parameters (not sure this is a great idea! .... I don't think the user should mess with the precise values. What matters is that the user isn't overwhelmed, imagine that they have mild ADHD, and that tasks are put in front of them in time for completion. There is no general "solution" to priority, but we want something good enough.)
 
 Default profile:
 
@@ -324,7 +321,7 @@ Reason:
 
 ---
 
-## 8.3 Export modes
+## 8.3 Export modes (note: though the database is the "source of truth" for the events and tasks, we should frequently export these calendars as a backup)
 
 System must support:
 
@@ -349,27 +346,31 @@ Needed for export reliability:
 
 ---
 
-# 9. Views / Tabs (finalized)
+# 9. Pages:
 
-## 9.1 Daily
+### 9.1 Calendar views:
+
+ Daily
 
 * time-blocked schedule
 * focus tasks (max 3–7)
-* journal entry
 
-## 9.2 Weekly
+Weekly
 
 * events overview
 * workload distribution
 * task pacing preview
 
-## 9.3 Monthly
+Monthly
 
 * events
 * recurring tasks
 * deadline tasks 
 
-## 9.4 Tasks (central hub)
+
+
+
+## 9.2 Tasks
 
 Filters:
 
@@ -389,18 +390,27 @@ Sorting:
 
 ---
 
-## 9.5 Journal
+## 9.3 Journal
 
 * chronological
 * per-day navigation
 * navigation via tags/links
 * searchable
 
-## 9.6 Notes
+## 9.4 Notes
 
 * searchable
 * tag/context filters
 * backlink visibility
+
+
+## 9.5 Search (full text, title, context, tags, and dates search)
+
+## 9.6 Review
+
+## Contexts (to edit, delete, add, reorder and change display colors for contexts).
+
+Note that a particular object may have multiple contexts/subcontexts. Maybe we can display up to four colors in that case ... the four "most root" colors.
 
 ---
 
@@ -468,4 +478,12 @@ There is still the problem of changing one occurrance of a recurring event. This
 
   * notes/journal content
 * sync layer resolves both via UUID mapping
+
+---
+
+# 14. Key open refinements
+
+1. Should journal entries be link-targets or mostly passive? They can be linked.
+4. Should subtasks be full tasks or lightweight objects? Not sure. Whatever is easier, I guess.
+
 

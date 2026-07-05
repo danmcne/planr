@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS events (
     end_at      TEXT,
     all_day     INTEGER NOT NULL DEFAULT 0,
     recurrence  TEXT NOT NULL DEFAULT '',
+    recur_exceptions TEXT NOT NULL DEFAULT '',
+    recurrence_id TEXT,
     parent_uuid TEXT REFERENCES events(uuid) ON DELETE SET NULL,
     root_uuid   TEXT,
     location    TEXT NOT NULL DEFAULT '',
@@ -168,6 +170,12 @@ def init_db():
         cols = {r[1] for r in conn.execute("PRAGMA table_info(contexts)").fetchall()}
         if "sort_order" not in cols:
             conn.execute("ALTER TABLE contexts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+        # Migration (1.5.0): per-occurrence overrides for recurring events
+        ecols = {r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()}
+        if "recur_exceptions" not in ecols:
+            conn.execute("ALTER TABLE events ADD COLUMN recur_exceptions TEXT NOT NULL DEFAULT ''")
+        if "recurrence_id" not in ecols:
+            conn.execute("ALTER TABLE events ADD COLUMN recurrence_id TEXT")
         if conn.execute("SELECT COUNT(*) FROM contexts").fetchone()[0] == 0:
             for cid, name, parent, path, color in DEFAULT_CONTEXTS:
                 conn.execute(
